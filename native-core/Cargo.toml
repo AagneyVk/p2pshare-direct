@@ -1,0 +1,25 @@
+[package]
+name = "p2pshare_native"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aes-gcm = "0.10"
+hkdf = "0.12"
+hmac = "0.12"
+napi = { version = "3", default-features = false, features = ["napi8"] }
+napi-derive = "3"
+sha2 = "0.10"
+zstd = "0.13"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

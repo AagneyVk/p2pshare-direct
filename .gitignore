@@ -1,0 +1,17 @@
+node_modules/
+.vite/
+dist/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+android/.gradle/
+android/app/build/
+android/local.properties
+native-core/target/
+electron/*.node
+local-maven/
