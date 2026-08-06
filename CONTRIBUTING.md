@@ -4,6 +4,9 @@ Thanks for helping improve P2PShare. This is experimental networking software,
 so correctness, interoperability, and reproducible measurements matter more
 than impressive-looking synthetic numbers.
 
+Please follow the project [Code of Conduct](CODE_OF_CONDUCT.md) and review the
+[Security Policy](SECURITY.md) before reporting security-sensitive behavior.
+
 ## Before starting
 
 1. Search existing issues and discussions.

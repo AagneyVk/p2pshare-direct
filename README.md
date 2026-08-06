@@ -1,94 +1,169 @@
+<div align="center">
+
 # P2PShare
 
-Experimental, direct peer-to-peer file transfer for desktop and Android. The
-primary transport is encrypted UDP with short connection tickets; file payloads
-are never uploaded to a relay or storage service.
+**High-performance, encrypted, direct file transfer for desktop and Android.**
 
-## Features
+[![CI](https://github.com/AagneyVk/p2pshare-direct/actions/workflows/ci.yml/badge.svg)](https://github.com/AagneyVk/p2pshare-direct/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Status: Experimental](https://img.shields.io/badge/status-experimental-orange.svg)](#project-status)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Android-4c8bf5.svg)](#platform-support)
 
-- Desktop ↔ Android, Android ↔ Android, and Desktop ↔ Desktop transfers
-- Direct UDP hole punching with STUN endpoint discovery
-- AES-256-GCM authentication and encryption
-- Rust desktop hot path for packet crypto, replay protection, SHA-256, and Zstd
-- Adaptive pacing, BDP-based flow control, selective repair, and optional parity
-- Capability-negotiated Zstandard compression with safe deflate fallback
-- Direct disk-to-network Electron path for already-compressed files
-- Optional Wi-Fi Aware hardware detection on Android
+[Architecture](ARCHITECTURE.md) · [Performance](PERFORMANCE.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
-Direct-only networking has an unavoidable limitation: some symmetric or
-carrier-grade NAT combinations cannot establish an inbound peer route. This
-project intentionally does not fall back to TURN or another relay.
+</div>
 
-## Requirements
+P2PShare sends files directly between peers over authenticated, encrypted UDP.
+Pairing uses a self-contained connection ticket—there is no account, signaling
+database, cloud upload, TURN server, or payload relay.
 
-- Node.js 18+
-- Rust stable (for the accelerated desktop addon)
-- Android Studio/JDK 17 and Android SDK 35 (for Android builds)
+> [!IMPORTANT]
+> P2PShare is experimental. It has not received an independent security audit,
+> and direct-only connectivity cannot traverse every NAT or firewall.
 
-## Desktop development
+## Why P2PShare?
+
+- **Direct by design** — payload bytes travel only between the two peers.
+- **Cross-platform protocol** — desktop-to-Android and same-platform transfers
+  share one binary wire format.
+- **Native hot path** — Rust accelerates desktop encryption, replay protection,
+  SHA-256, and Zstandard operations.
+- **Network-aware throughput** — delivery-rate pacing, BDP-derived flow control,
+  selective repair, tail probes, and adaptive parity react to path conditions.
+- **Compression that knows when to stop** — sampled compression is used only
+  when predicted wire savings justify the CPU cost.
+- **Large-file oriented** — direct disk streaming, bounded buffers, resumable
+  receiver checkpoints, and coalesced writes avoid loading whole files in RAM.
+
+## Project status
+
+| Area | Status |
+| --- | --- |
+| Desktop native UDP | Implemented |
+| Android native UDP | Implemented |
+| Desktop ↔ Android interoperability | Implemented |
+| AES-256-GCM packet protection | Implemented |
+| Selective repair and adaptive pacing | Implemented |
+| Zstandard negotiation | Implemented |
+| Wi-Fi Aware/NAN data path | Capability detection only |
+| Independent security audit | Not completed |
+| Production support guarantee | Not provided |
+
+## How it works
+
+```text
+Host                                      Guest
+  |                                         |
+  |-- Base32 ticket (IPv4 + secret) ------->|
+  |<======= authenticated hole punch ======>|
+  |<========= encrypted UDP session =======>|
+  |--- OFFER / CHUNK / DONE ---------------->|
+  |<-- FLOW / selective REPAIR / COMPLETE --|
+```
+
+1. The host discovers its public UDP mapping with STUN.
+2. A short Base32 ticket encodes the endpoint, an 80-bit random secret, and a
+   transcription checksum.
+3. The peers authenticate random handshake nonces with HMAC-SHA256 and derive a
+   session key with HKDF-SHA256.
+4. Every data-plane packet is protected with AES-256-GCM and replay checking.
+5. The receiver verifies SHA-256 before finalizing the file.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the packet lifecycle, trust
+boundaries, congestion model, and platform responsibilities.
+
+## Measured native performance
+
+On the development Windows machine, the 200,000-packet AES-256-GCM benchmark
+with 1,435-byte payloads measured:
+
+| Engine | Throughput | Packet rate |
+| --- | ---: | ---: |
+| Node.js AES-GCM | 203.6 MiB/s | 148,788 packets/s |
+| Rust AES-GCM | 382.4 MiB/s | 279,427 packets/s |
+
+That is approximately **1.88× packet-crypto throughput** for the Rust path on
+that machine. Results are hardware-dependent; run `npm run benchmark:native`
+locally instead of treating this as an end-to-end network guarantee. Detailed
+methodology and caveats are in [PERFORMANCE.md](PERFORMANCE.md).
+
+## Platform support
+
+| Sender | Receiver | Supported |
+| --- | --- | :---: |
+| Desktop | Desktop | Yes |
+| Desktop | Android | Yes |
+| Android | Desktop | Yes |
+| Android | Android | Yes |
+
+The current desktop build and native-addon workflow are tested on Windows.
+Android requires API 26 or newer; the project compiles against SDK 35.
+
+## Quick start
+
+### Desktop
+
+Requirements: Node.js 18+, Rust stable, and a C/C++ linker supported by Rust.
 
 ```bash
+git clone https://github.com/AagneyVk/p2pshare-direct.git
+cd p2pshare-direct
 npm ci
 npm run build:native
 npm run build
 npm run desktop
 ```
 
-During UI development, run `npm run dev` and `npm run desktop` in separate
-terminals. The native addon is optional at runtime: the desktop automatically
-falls back to Node crypto when it has not been built.
+For UI development, run `npm run dev` and `npm run desktop` in separate
+terminals. If the Rust addon is unavailable, Electron falls back to Node crypto.
 
-Useful checks:
+### Android
 
-```bash
-npm run benchmark:native
-cargo test --release --manifest-path native-core/Cargo.toml
-```
-
-## Android
-
-Create `android/local.properties` with your local SDK path, then run:
+Requirements: JDK 17, Android SDK 35, and a configured SDK path.
 
 ```bash
 cd android
 ./gradlew testDebugUnitTest assembleDebug
 ```
 
-The debug APK is written to
-`android/app/build/outputs/apk/debug/app-debug.apk`.
+The debug APK is generated at
+`android/app/build/outputs/apk/debug/app-debug.apk`. Android Studio may create
+`android/local.properties`; it is intentionally ignored by Git.
 
-## Pairing
+## Pairing and transfer
 
-1. Select **Create session** on one peer.
-2. Share the generated connection ticket with the other peer.
-3. Enter the ticket on the joining peer.
-4. The peers authenticate the ticket secret and attempt a direct UDP route.
+1. Choose **Create session** on the receiving or hosting peer.
+2. Share the generated ticket privately with the other peer.
+3. Enter the ticket and choose **Join session**.
+4. Wait for direct route authentication, then select a file.
 
-The ticket contains the public IPv4 endpoint and a random 80-bit session secret.
-It is not a reusable account credential.
+Tickets grant access to a pairing attempt. Do not post active tickets publicly.
 
-The React interface is hosted by Electron and intentionally has no browser-only
-signaling backend. Firebase and TURN are not used or included because this
-repository enforces a direct-only, no-relay policy.
+## Direct-only limitation
+
+Symmetric NAT, carrier-grade NAT, UDP blocking, and strict firewalls can make a
+direct route impossible. P2PShare reports the failure instead of routing data
+through a relay. This privacy property means connectivity is intentionally less
+universal than services that operate TURN or upload infrastructure.
 
 ## Repository layout
 
-- `electron/` — desktop process, preload bridge, and direct UDP transport
-- `native-core/` — Rust N-API acceleration module
-- `android/` — native Android client
-- `src/` — React interface and adaptive compression preparation
-- `ARCHITECTURE.md` — authoritative protocol and security architecture
-- `CONTRIBUTING.md` — development and pull-request guidelines
-- `PERFORMANCE.md` — tuning decisions and measured benchmarks
+```text
+android/       Native Android application and Kotlin transport
+electron/      Electron main process, preload API, and UDP transport
+native-core/   Rust N-API crypto, hashing, replay, and Zstd core
+src/           React interface and adaptive file preparation
+```
 
-## Security
+## Development and security
 
-- Never publish a live `.env`, signing keystore, or connection ticket.
-- Connection tickets grant access to one pairing attempt; share them privately.
-- Received files are verified with SHA-256 before finalization.
-- This is experimental software and has not received an independent security
-  audit.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing protocol changes.
+- Report vulnerabilities according to [SECURITY.md](SECURITY.md), not in public
+  issues.
+- Performance claims should include topology, file type, RTT/loss, hardware,
+  and repeatable commands.
+- Protocol changes must be tested in both desktop-to-Android directions.
 
 ## License
 
-P2PShare is available under the [MIT License](LICENSE).
+P2PShare is licensed under the [MIT License](LICENSE).
