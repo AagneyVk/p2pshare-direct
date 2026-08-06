@@ -77,7 +77,8 @@ repository enforces a direct-only, no-relay policy.
 - `native-core/` — Rust N-API acceleration module
 - `android/` — native Android client
 - `src/` — React interface and adaptive compression preparation
-- `DIRECT-P2P-ARCHITECTURE.md` — protocol and security architecture
+- `ARCHITECTURE.md` — authoritative protocol and security architecture
+- `CONTRIBUTING.md` — development and pull-request guidelines
 - `PERFORMANCE.md` — tuning decisions and measured benchmarks
 
 ## Security
@@ -90,5 +91,4 @@ repository enforces a direct-only, no-relay policy.
 
 ## License
 
-No license has been selected yet. Add a `LICENSE` file before inviting external
-contributors or distributing binaries.
+P2PShare is available under the [MIT License](LICENSE).
