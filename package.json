@@ -10,13 +10,15 @@
     "build": "tsc && vite build",
     "build:native": "cargo build --release --manifest-path native-core/Cargo.toml && node native-core/install-addon.cjs",
     "benchmark:native": "node native-core/benchmark.cjs",
+    "benchmark:compression": "node native-core/compression-benchmark.cjs",
+    "benchmark:research": "npm run benchmark:native -- --json && npm run benchmark:compression -- --json",
     "preview": "vite preview"
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
     "electron": "^31.0.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react-dom": "^18.2.15",
     "zustand": "^4.4.6"
   },
   "devDependencies": {
