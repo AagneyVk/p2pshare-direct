@@ -6,7 +6,8 @@ use napi_derive::napi;
 use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 type HmacSha256 = Hmac<Sha256>;
 const MAGIC: u32 = 0x5132_5053;
@@ -57,6 +58,25 @@ fn accept_counter(state: &mut CryptoState, counter: u64) -> bool {
     true
 }
 
+fn seal_packet(state: &mut CryptoState, plaintext: &[u8]) -> Result<Vec<u8>> {
+    state.send_counter = state.send_counter.checked_add(1)
+        .ok_or_else(|| Error::from_reason("packet counter exhausted"))?;
+    let counter = state.send_counter;
+    let counter_bytes = counter.to_be_bytes();
+    let nonce_bytes = nonce(state.send_prefix, counter);
+    let encrypted = state.cipher.encrypt(
+        Nonce::from_slice(&nonce_bytes),
+        Payload { msg: plaintext, aad: &counter_bytes },
+    ).map_err(|_| Error::from_reason("AES-GCM encryption failed"))?;
+    let mut output = Vec::with_capacity(14 + encrypted.len());
+    output.extend_from_slice(&MAGIC.to_be_bytes());
+    output.push(VERSION);
+    output.push(ENCRYPTED_TYPE);
+    output.extend_from_slice(&counter_bytes);
+    output.extend_from_slice(&encrypted);
+    Ok(output)
+}
+
 #[napi]
 impl PacketCrypto {
     #[napi(constructor)]
@@ -80,22 +100,22 @@ impl PacketCrypto {
     #[napi]
     pub fn seal(&self, plaintext: Buffer) -> Result<Buffer> {
         let mut state = self.state.lock().map_err(|_| Error::from_reason("crypto state poisoned"))?;
-        state.send_counter = state.send_counter.checked_add(1)
-            .ok_or_else(|| Error::from_reason("packet counter exhausted"))?;
-        let counter = state.send_counter;
-        let counter_bytes = counter.to_be_bytes();
-        let nonce_bytes = nonce(state.send_prefix, counter);
-        let encrypted = state.cipher.encrypt(
-            Nonce::from_slice(&nonce_bytes),
-            Payload { msg: &plaintext, aad: &counter_bytes },
-        ).map_err(|_| Error::from_reason("AES-GCM encryption failed"))?;
+        Ok(seal_packet(&mut state, &plaintext)?.into())
+    }
 
-        let mut output = Vec::with_capacity(6 + 8 + encrypted.len());
-        output.extend_from_slice(&MAGIC.to_be_bytes());
-        output.push(VERSION);
-        output.push(ENCRYPTED_TYPE);
-        output.extend_from_slice(&counter_bytes);
-        output.extend_from_slice(&encrypted);
+    /// Benchmark/prototype primitive: crosses N-API once and seals many equal-sized
+    /// packets natively. Output is length-prefixed so packet boundaries are retained.
+    #[napi]
+    pub fn seal_batch(&self, plaintexts: Vec<Buffer>) -> Result<Buffer> {
+        let mut state = self.state.lock().map_err(|_| Error::from_reason("crypto state poisoned"))?;
+        let estimated = plaintexts.iter().map(|p| p.len() + 34).sum();
+        let mut output = Vec::with_capacity(estimated);
+        for plaintext in plaintexts {
+            let packet = seal_packet(&mut state, &plaintext)?;
+            let len = u32::try_from(packet.len()).map_err(|_| Error::from_reason("packet too large"))?;
+            output.extend_from_slice(&len.to_be_bytes());
+            output.extend_from_slice(&packet);
+        }
         Ok(output.into())
     }
 
@@ -159,6 +179,57 @@ pub fn zstd_decompress_file(input_path: String, output_path: String) -> Result<i
     Ok(output.get_ref().metadata().map_err(|error| Error::from_reason(error.to_string()))?.len() as i64)
 }
 
+/// Compress independent regions concurrently. This deliberately creates independent
+/// Zstd frames: receiver-side decoding/recovery can later operate per region.
+#[napi]
+pub fn zstd_compress_regions(input: Buffer, region_bytes: u32, level: i32, workers: u32) -> Result<Vec<Buffer>> {
+    let region_bytes = usize::try_from(region_bytes).unwrap_or(0);
+    if region_bytes == 0 { return Err(Error::new(Status::InvalidArg, "region_bytes must be > 0")); }
+    let level = level.clamp(1, 9);
+    let regions: Vec<Vec<u8>> = input.chunks(region_bytes).map(|chunk| chunk.to_vec()).collect();
+    if regions.is_empty() { return Ok(Vec::new()); }
+
+    let region_count = regions.len();
+    let worker_count = usize::try_from(workers.max(1)).unwrap_or(1).min(region_count);
+    let queue = Arc::new(Mutex::new(regions.into_iter().enumerate()));
+    let results = Arc::new(Mutex::new(vec![None::<Vec<u8>>; region_count]));
+    let mut handles = Vec::with_capacity(worker_count);
+
+    for _ in 0..worker_count {
+        let queue = Arc::clone(&queue);
+        let results = Arc::clone(&results);
+        handles.push(thread::spawn(move || -> std::result::Result<(), String> {
+            loop {
+                let next = queue.lock().map_err(|_| "region queue poisoned".to_string())?.next();
+                let Some((index, region)) = next else { break };
+                let encoded = zstd::bulk::compress(&region, level).map_err(|e| e.to_string())?;
+                results.lock().map_err(|_| "region results poisoned".to_string())?[index] = Some(encoded);
+            }
+            Ok(())
+        }));
+    }
+    for handle in handles {
+        handle.join().map_err(|_| Error::from_reason("compression worker panicked"))?
+            .map_err(Error::from_reason)?;
+    }
+    let mut guard = results.lock().map_err(|_| Error::from_reason("region results poisoned"))?;
+    guard.drain(..).map(|value| value.map(Buffer::from)
+        .ok_or_else(|| Error::from_reason("missing compressed region"))).collect()
+}
+
+#[napi]
+pub fn zstd_decompress_regions(regions: Vec<Buffer>, expected_region_bytes: u32) -> Result<Buffer> {
+    let expected = usize::try_from(expected_region_bytes).unwrap_or(0);
+    if expected == 0 { return Err(Error::new(Status::InvalidArg, "expected_region_bytes must be > 0")); }
+    let mut output = Vec::new();
+    for region in regions {
+        let decoded = zstd::bulk::decompress(&region, expected)
+            .map_err(|error| Error::from_reason(error.to_string()))?;
+        output.extend_from_slice(&decoded);
+    }
+    Ok(output.into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,5 +239,18 @@ mod tests {
         let key = [7u8; 32];
         assert_ne!(prefix(&key, "host").unwrap(), prefix(&key, "guest").unwrap());
         assert_eq!(nonce([1, 2, 3, 4], 9), [1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 9]);
+    }
+
+    #[test]
+    fn independent_zstd_regions_round_trip() {
+        let source = vec![0x41u8; 1024 * 1024 + 137];
+        let size = 256 * 1024;
+        let regions: Vec<_> = source.chunks(size)
+            .map(|chunk| zstd::bulk::compress(chunk, 1).unwrap()).collect();
+        let mut decoded = Vec::new();
+        for region in regions {
+            decoded.extend(zstd::bulk::decompress(&region, size).unwrap());
+        }
+        assert_eq!(decoded, source);
     }
 }
