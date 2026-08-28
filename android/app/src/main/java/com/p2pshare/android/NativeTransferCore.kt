@@ -66,7 +66,9 @@ internal class NativeTransferCore private constructor() : AutoCloseable {
 
     companion object {
         private val loaded = runCatching {
-            System.loadLibrary("p2pshare_transfer")
+            // Cargo package/native library name is p2pshare_android, producing
+            // libp2pshare_android.so in jniLibs/arm64-v8a.
+            System.loadLibrary("p2pshare_android")
             true
         }.getOrDefault(false)
 
