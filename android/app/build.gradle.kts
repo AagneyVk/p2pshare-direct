@@ -22,5 +22,5 @@ kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
-    implementation("com.github.luben:zstd-jni:1.5.7-6@aar")
+    implementation("com.github.luben:zstd-jni:1.5.7-16@aar")
 }
