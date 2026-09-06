@@ -1,14 +1,16 @@
 package com.p2pshare.android
 
 import android.net.Uri
-import android.test.InstrumentationTestCase
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Test
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import java.io.File
 import java.net.InetSocketAddress
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
-@Suppress("DEPRECATION")
-class QuicIntegrationTest : InstrumentationTestCase() {
+class QuicIntegrationTest {
     private class Events : DirectUdpTransport.Listener {
         val connected = LinkedBlockingQueue<Boolean>()
         val files = LinkedBlockingQueue<File>()
@@ -20,8 +22,9 @@ class QuicIntegrationTest : InstrumentationTestCase() {
         override fun onError(error: Throwable) { errors.offer(error) }
     }
 
+    @Test
     fun testJniPairingAndFileBothDirections() {
-        val context = instrumentation.targetContext
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
         val a = Events(); val b = Events()
         val host = QuicTransport(context, a)
         val guest = QuicTransport(context, b)
