@@ -24,6 +24,7 @@ class MainActivity : Activity(), DirectUdpTransport.Listener {
     private var transport: QuicTransport? = null
     private val worker = Executors.newSingleThreadScheduledExecutor()
     private var sessionCode = ""
+    private var generation = 0L
 
     private lateinit var codeInput: EditText
     private lateinit var status: TextView
@@ -92,6 +93,7 @@ class MainActivity : Activity(), DirectUdpTransport.Listener {
             addView(Button(context).apply {
                 text = "DISCONNECT"
                 setOnClickListener {
+                    generation++
                     transport?.close(); transport = null
                     sessionCode = ""; session.text = ""; sendButton.isEnabled = false
                     onStatus("Disconnected • Create a new ticket to resume")
@@ -135,17 +137,20 @@ class MainActivity : Activity(), DirectUdpTransport.Listener {
     ).apply { topMargin = 10 }
 
     private fun createSession() {
-        sendButton.isEnabled = false
         if (transport != null) { onStatus("Disconnect before starting a new session"); return }
+        sendButton.isEnabled = false
         onStatus("Creating private LAN ticket…")
-        val next = try { QuicTransport(applicationContext, this) } catch (error: Throwable) { onError(error); return }
+        val next = try { newTransport() } catch (error: Throwable) { onError(error); return }
         transport = next
         worker.execute {
             try {
-                sessionCode = next.createTicket()
-                runOnUiThread { session.text = "TICKET: $sessionCode" }
-                onStatus("Waiting for a direct peer…")
-            } catch (error: Throwable) { onError(error) }
+                val ticket = next.createTicket()
+                runOnUiThread { if (transport === next && !isDestroyed) {
+                    sessionCode = ticket
+                    session.text = "TICKET: $ticket"
+                    if (!sendButton.isEnabled) onStatus("Waiting for a direct peer…")
+                } }
+            } catch (error: Throwable) { runOnUiThread { if (transport === next && !isDestroyed) onError(error) } }
         }
     }
 
@@ -160,11 +165,29 @@ class MainActivity : Activity(), DirectUdpTransport.Listener {
         session.text = "JOINING: $sessionCode"
         sendButton.isEnabled = false
         onStatus("Authenticating direct peer…")
-        val next = try { QuicTransport(applicationContext, this) } catch (error: Throwable) { onError(error); return }
+        val next = try { newTransport() } catch (error: Throwable) { onError(error); return }
         transport = next
         worker.execute { try {
             next.joinTicket(code)
-        } catch (error: Throwable) { onError(error) } }
+        } catch (error: Throwable) { runOnUiThread { if (transport === next && !isDestroyed) onError(error) } } }
+    }
+
+    private fun newTransport(): QuicTransport {
+        val epoch = ++generation
+        return QuicTransport(applicationContext, object : DirectUdpTransport.Listener {
+            private fun deliver(block: () -> Unit) = runOnUiThread {
+                if (generation == epoch && !isDestroyed) block()
+            }
+            override fun onStatus(status: String) = deliver { this@MainActivity.onStatus(status) }
+            override fun onConnected(endpoint: java.net.InetSocketAddress) = deliver { this@MainActivity.onConnected(endpoint) }
+            override fun onProgress(name: String, received: Boolean, done: Long, total: Long) = deliver {
+                this@MainActivity.onProgress(name, received, done, total)
+            }
+            override fun onReceived(file: File, name: String, mimeType: String) = deliver {
+                this@MainActivity.onReceived(file, name, mimeType)
+            }
+            override fun onError(error: Throwable) = deliver { this@MainActivity.onError(error) }
+        })
     }
 
     override fun onStatus(status: String) = runOnUiThread { this.status.text = status }
@@ -237,6 +260,7 @@ class MainActivity : Activity(), DirectUdpTransport.Listener {
     }
 
     override fun onDestroy() {
+        generation++
         worker.shutdownNow()
         transport?.close()
         super.onDestroy()

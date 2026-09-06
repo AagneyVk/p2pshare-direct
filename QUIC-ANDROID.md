@@ -30,7 +30,7 @@ delete after sending, but a killed process can leave staging data in app cache.
 
 Install JDK 17, Android SDK 35, NDK 28.0.13004108, stable Rust with targets
 `aarch64-linux-android` and `x86_64-linux-android`, and
-`cargo install cargo-ndk --version 0.3.5 --locked`. Then run in `android/`:
+`cargo install cargo-ndk --version 4.1.2 --locked`. Then run in `android/`:
 
 ```sh
 ./gradlew testDebugUnitTest assembleDebug

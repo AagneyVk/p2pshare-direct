@@ -1,8 +1,9 @@
 # Shared QUIC core — staged v3 alpha
 
 This Rust data plane now powers an **opt-in desktop preview**, started with
-`npm run desktop:quic` after building the engine and UI. Default desktop and
-Android remain v2. See `../QUIC-DESKTOP.md`; do not claim complete migration.
+`npm run desktop:quic` after building the engine and UI, and Android's JNI preview.
+Default desktop remains v2. See `../QUIC-DESKTOP.md` and `../QUIC-ANDROID.md`;
+this is not a production release.
 
 ```sh
 cargo test --locked --manifest-path transport-core/Cargo.toml

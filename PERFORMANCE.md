@@ -6,8 +6,8 @@ Run `cargo run --locked --release --manifest-path transport-core/Cargo.toml --ex
 It outputs JSON with source/payload bytes, connection time, verified completion
 time including hashing/sync and effective MiB/s. This is warm-cache loopback,
 not real-device speed. CPU, RSS, p10 and energy measurements are not implemented
-in this harness. Default desktop and Android still use v2; an opt-in desktop
-preview now drives native QUIC through a two-process-tested command adapter.
+in this harness. Desktop preview and Android JNI now share the QUIC engine;
+Android staging and device performance are not measured by this harness.
 This does not establish a performance comparison with v2 or other products.
 
 Do not compare this result directly with the isolated AES-GCM numbers below.
