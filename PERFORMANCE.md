@@ -1,5 +1,27 @@
 # Performance engineering plan
 
+## v3-alpha reproducible smoke benchmark
+
+Run `cargo run --locked --release --manifest-path transport-core/Cargo.toml --example loopback -- 64`.
+It outputs JSON with source/payload bytes, connection time, verified completion
+time including hashing/sync and effective MiB/s. This is warm-cache loopback,
+not real-device speed. CPU, RSS, p10 and energy measurements are not implemented
+in this harness. The current desktop and Android UI still use v2.
+
+Do not compare this result directly with the isolated AES-GCM numbers below.
+
+During initial validation on Linux x86_64, an 8 MiB stream window failed twice
+on a 64 MiB transfer with Quinn's `too many gaps in stream buffer` error. A
+512 KiB stream/send cap then completed a 64 MiB run and three 256 MiB runs
+with verified integrity. The larger runs overlapped other local work and are
+correctness smoke tests, not controlled throughput comparisons. This is an
+open performance investigation, especially for high-RTT paths.
+
+A subsequent single 4 GiB run completed in 17.683 seconds including hashing,
+sync and confirmation (231.63 effective MiB/s on this local environment).
+Raw output is in `transport-core/benchmarks/linux-loopback-smoke.json`.
+It is not a speedup measurement against v2, a device result or a release guarantee.
+
 ## Rust native core
 
 The desktop packet encryption hot path now uses a Rust N-API addon with an

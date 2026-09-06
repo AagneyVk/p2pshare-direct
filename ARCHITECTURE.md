@@ -1,5 +1,18 @@
 # Architecture
 
+## Staged QUIC migration
+
+`transport-core/` now contains an independent Rust QUIC v3-alpha implementation.
+It is **not wired into the clients below**. See `PROTOCOL-V3.md`,
+`THREAT-MODEL.md` and `PRODUCTION-READINESS.md` for the implemented scope and gates.
+Retain React, Electron shell, Android UI and the direct-only product model.
+Retire duplicated v2 packet crypto, framing, pacing, repair/parity and socket
+loops only after shared native bindings and interoperability tests pass.
+
+The existing wire format and pairing codec cannot be reused unchanged for TLS:
+v3 pairing must authenticate peer certificate material. Merely swapping socket
+libraries does not supply this trust binding.
+
 P2PShare is a direct-only file-transfer experiment for Electron desktops and
 Android devices. Peers exchange file bytes over UDP; the project has no relay,
 cloud storage, Firebase signaling, or TURN fallback.

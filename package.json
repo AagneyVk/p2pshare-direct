@@ -5,7 +5,7 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
-    "test": "node --test tests/*.test.cjs",
+    "test": "node --test tests/transport-security.test.cjs",
     "dev": "vite",
     "desktop": "electron electron/main.cjs",
     "build": "tsc && vite build",

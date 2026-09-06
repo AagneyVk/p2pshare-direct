@@ -1,5 +1,9 @@
 # Security policy
 
+The staged QUIC core is not yet used by the application clients. See
+`THREAT-MODEL.md` and `PRODUCTION-READINESS.md` for trust assumptions and open
+release gates. Neither transport is claimed to be independently audited.
+
 ## Supported versions
 
 P2PShare is experimental and currently supports only the latest commit on the

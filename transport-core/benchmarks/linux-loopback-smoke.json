@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "topology": "loopback",
+  "build": "release",
+  "os": "linux",
+  "arch": "x86_64",
+  "corpus": "xorshift64-seed-123456789abcdef0-no-compression",
+  "connect_seconds": 0.001788562,
+  "total_seconds_including_hash_and_sync": 17.683032619,
+  "effective_mib_per_second": 231.63447629446463,
+  "integrity_verified": true,
+  "transfer": {
+    "source_bytes": 4294967296,
+    "payload_bytes": 4294967296,
+    "reused_bytes": 0,
+    "digest": "41da3fc38e5112e618c754908554a453e78e2290ff7bac6ebbfe0dfee6756a0e"
+  },
+  "caveats": [
+    "single warm-cache smoke run, not a comparative benchmark",
+    "not independent devices; not Android or Wi-Fi",
+    "not wire throughput",
+    "no RSS CPU energy or p10 sampling",
+    "source and certificate generation outside the timer"
+  ]
+}
