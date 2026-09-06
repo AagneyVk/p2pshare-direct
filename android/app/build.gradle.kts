@@ -48,5 +48,5 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("junit:junit:4.13.2")
     testImplementation("junit:junit:4.13.2")
-    implementation("com.github.luben:zstd-jni:1.5.7-6@aar")
+    implementation("com.github.luben:zstd-jni:1.5.7-16@aar")
 }
