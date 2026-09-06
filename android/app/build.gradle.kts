@@ -31,10 +31,14 @@ val buildQuicNative by tasks.registering(Exec::class) {
     inputs.file(core.resolve("Cargo.toml"))
     inputs.file(core.resolve("Cargo.lock"))
     outputs.dir(layout.projectDirectory.dir("src/main/jniLibs"))
-    environment("ANDROID_NDK_HOME", android.sdkDirectory.resolve("ndk/${android.ndkVersion}").absolutePath)
+    val ndkPath = android.sdkDirectory.resolve("ndk/${android.ndkVersion}").absolutePath
+    environment("ANDROID_NDK_HOME", ndkPath)
+    environment("ANDROID_NDK_ROOT", ndkPath)
+    environment("ANDROID_NDK", ndkPath)
+    environment("CARGO_NDK_PLATFORM", "26")
     environment("RUSTFLAGS", "-C link-arg=-Wl,-z,max-page-size=16384")
     workingDir(core)
-    commandLine("cargo", "ndk", "-t", "arm64-v8a", "-t", "x86_64", "-p", "26",
+    commandLine("cargo", "ndk", "-t", "arm64-v8a", "-t", "x86_64",
         "-o", layout.projectDirectory.dir("src/main/jniLibs").asFile.absolutePath,
         "build", "--locked", "--release", "--lib")
 }
