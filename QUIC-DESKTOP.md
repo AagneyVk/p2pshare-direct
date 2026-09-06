@@ -3,7 +3,8 @@
 This is a working opt-in desktop path, not a production release. It keeps all
 file data and QUIC processing in a separate Rust process. Electron exchanges
 bounded JSON commands and throttled status events, never per-packet payloads.
-The original v2 path remains the default; Android is still v2-only.
+The original v2 desktop path remains the default. Android now has a JNI adapter
+for this preview; see [Android interoperability](QUIC-ANDROID.md).
 
 ## Run on two desktops
 

@@ -12,7 +12,9 @@ Thumbs.db
 android/.gradle/
 android/app/build/
 android/local.properties
+android/app/src/main/jniLibs/
 native-core/target/
 transport-core/target/
 electron/*.node
 local-maven/
+__pycache__/

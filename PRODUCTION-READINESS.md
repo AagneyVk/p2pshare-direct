@@ -2,6 +2,15 @@
 
 Status: **not production ready**. Baseline inspected: `25d4479`.
 
+## Android integration update
+
+Android's launcher now uses the shared Rust engine via a primitive JNI socketpair
+bridge, compatible with desktop QUIC preview. Gradle builds ARM64/x86-64 libraries.
+Document providers are staged to private disk; there is no background service or
+zero-copy descriptor source yet. CI adds emulator and JNI/desktop interoperability
+tests. Local compilation is blocked by missing Rust and unreachable Gradle downloads.
+See `QUIC-ANDROID.md`. Older milestones below describe their state at that time.
+
 ## Current milestone: opt-in desktop integration
 
 The original stage below is retained as history. Current desktop preview uses

@@ -40,7 +40,9 @@ database, cloud upload, TURN server, or payload relay.
 **New opt-in desktop QUIC preview:** `npm run build:engine`, `npm run build`,
 then `npm run desktop:quic` on both desktops. See
 [QUIC desktop preview](QUIC-DESKTOP.md) for capabilities and limitations.
-The default app and Android still use v2; v3 is not Android-compatible yet.
+The Android launcher now uses the same QUIC preview through JNI; see
+[Android interoperability](QUIC-ANDROID.md). Desktop must use `desktop:quic`
+to pair with Android. Desktop's default launch still uses v2.
 
 | Area | Status |
 | --- | --- |

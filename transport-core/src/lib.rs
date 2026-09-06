@@ -1,6 +1,9 @@
-//! V3 data plane used by the opt-in desktop preview; Android integration pending.
+//! Shared V3 data plane for desktop preview and Android JNI.
 //! Callers own pairing, user consent, quotas, cancellation and trusted storage.
 pub mod pairing;
+pub mod engine;
+#[cfg(unix)]
+mod android;
 pub mod tls;
 
 use anyhow::{Result, bail, ensure};
