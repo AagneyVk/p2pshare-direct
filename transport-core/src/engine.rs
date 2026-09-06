@@ -68,8 +68,8 @@ async fn receive_loop(connection: quinn::Connection, directory: PathBuf, events:
                     return;
                 }
             }
-            Err(_) => {
-                let _ = events.send(json!({"event":"error", "message":"Receive failed or peer disconnected. Partial data is retained."})).await;
+            Err(error) => {
+                let _ = events.send(json!({"event":"error", "message":format!("Receive failed: {error}. Partial data is retained.")})).await;
                 connection.close(2u32.into(), b"receive failed");
                 return;
             }

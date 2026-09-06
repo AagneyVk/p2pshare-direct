@@ -15,7 +15,8 @@ class QuicIntegrationTest {
         val connected = LinkedBlockingQueue<Boolean>()
         val files = LinkedBlockingQueue<File>()
         val errors = LinkedBlockingQueue<Throwable>()
-        override fun onStatus(status: String) {}
+        val statuses = LinkedBlockingQueue<String>()
+        override fun onStatus(status: String) { statuses.offer(status) }
         override fun onConnected(endpoint: InetSocketAddress) { connected.offer(true) }
         override fun onProgress(name: String, received: Boolean, done: Long, total: Long) {}
         override fun onReceived(file: File, name: String, mimeType: String) { files.offer(file) }
@@ -37,11 +38,11 @@ class QuicIntegrationTest {
             assertNotNull(b.connected.poll(20, TimeUnit.SECONDS))
             host.sendFile(Uri.fromFile(source))
             val received = b.files.poll(30, TimeUnit.SECONDS)
-            assertNotNull("Receive failed: ${b.errors.peek()}", received)
+            assertNotNull("Receive failed: sender=${a.errors.peek()}, receiver=${b.errors.peek()}, status=${a.statuses}", received)
             assertTrue(payload.contentEquals(received!!.readBytes()))
             guest.sendFile(Uri.fromFile(source))
             val returned = a.files.poll(30, TimeUnit.SECONDS)
-            assertNotNull("Return failed: ${a.errors.peek()}", returned)
+            assertNotNull("Return failed: sender=${b.errors.peek()}, receiver=${a.errors.peek()}, status=${b.statuses}", returned)
             assertTrue(payload.contentEquals(returned!!.readBytes()))
         } finally {
             host.close(); guest.close(); source.delete()
