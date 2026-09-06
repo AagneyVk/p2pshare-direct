@@ -115,7 +115,7 @@ class DirectUdpTransport(
     @Volatile private var sendNoncePrefix: ByteArray? = null
     @Volatile private var receiveNoncePrefix: ByteArray? = null
     private val sendCounter = AtomicLong(0)
-    private val receivedCounters = ConcurrentHashMap.newKeySet<Long>()
+    private val receivedCounters = ReplayWindow()
     @Volatile private var peerCapabilities: Int = 0
 
     init {
@@ -194,7 +194,7 @@ class DirectUdpTransport(
                     listener.onProgress(transfer.name, false,
                         min(size, (seq + 1L) * transfer.chunkSize), size)
                 }
-                val hash = sha256(spool)
+                val hash = sha256(prepared.file)
                 val done = ProtocolV2.packet(ProtocolV2.DONE, 16 + 64)
                     .put(ProtocolV2.uuidBytes(id))
                     .put(hash.toByteArray(Charsets.US_ASCII)).array()
@@ -213,7 +213,14 @@ class DirectUdpTransport(
                 socket.receive(datagram)
                 var bytes = datagram.data.copyOfRange(datagram.offset, datagram.offset + datagram.length)
                 if (handleStun(bytes)) continue
-                if (bytes.size >= 6 && bytes[5] == ENCRYPTED) bytes = openPacket(bytes) ?: continue
+                if (bytes.size < ProtocolV2.HEADER_BYTES) continue
+                val encrypted = bytes[5] == ENCRYPTED
+                if (encrypted) bytes = openPacket(bytes) ?: continue
+                if (bytes.size < ProtocolV2.HEADER_BYTES) continue
+                val handshake = bytes[5] == ProtocolV2.HELLO || bytes[5] == ProtocolV2.HELLO_ACK
+                if (handshake) {
+                    if (encrypted || ticketSecret == null) continue
+                } else if (!encrypted || sessionKey == null) continue
                 handlePacket(bytes, InetSocketAddress(datagram.address, datagram.port))
             } catch (error: Throwable) {
                 if (running.get()) listener.onError(error)
@@ -232,7 +239,6 @@ class DirectUdpTransport(
                 val mac = ByteArray(16).also(body::get)
                 if (!MessageDigest.isEqual(mac, handshakeMac("hello", guestNonce))) return
                 peerCapabilities = if (body.hasRemaining()) body.get().toInt() and 0xff else 0
-                peer = source
                 val hostNonce = localNonce ?: ByteArray(16).also { SecureRandom().nextBytes(it); localNonce = it }
                 val ack = ProtocolV2.packet(ProtocolV2.HELLO_ACK, 33).put(hostNonce)
                     .put(handshakeMac("ack", guestNonce, hostNonce)).put(ProtocolV2.CAP_ZSTD).array()
@@ -329,14 +335,14 @@ class DirectUdpTransport(
             val key = sessionKey ?: return null
             val body = ByteBuffer.wrap(bytes, 6, bytes.size - 6)
             val counter = body.long
-            if (receivedCounters.contains(counter)) return null
             val counterBytes = ByteBuffer.allocate(8).putLong(counter).array()
             val encrypted = ByteArray(body.remaining()).also(body::get)
             val sender = if (role == Role.HOST) Role.GUEST else Role.HOST
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, nonce(counter, sender)))
             cipher.updateAAD(counterBytes)
-            cipher.doFinal(encrypted).also { receivedCounters.add(counter) }
+            val plaintext = cipher.doFinal(encrypted)
+            if (receivedCounters.accept(counter)) plaintext else null
         } catch (_: Throwable) { null }
     }
 

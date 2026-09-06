@@ -43,6 +43,7 @@ fn nonce(prefix: [u8; 4], counter: u64) -> [u8; 12] {
 }
 
 fn accept_counter(state: &mut CryptoState, counter: u64) -> bool {
+    if counter == 0 { return false; }
     if counter > state.highest_received {
         let shift = counter - state.highest_received;
         state.replay_window = if shift >= 64 { 1 } else { (state.replay_window << shift) | 1 };

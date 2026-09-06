@@ -22,5 +22,6 @@ kotlinOptions { jvmTarget = "17" }
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation("com.github.luben:zstd-jni:1.5.7-6@aar")
 }

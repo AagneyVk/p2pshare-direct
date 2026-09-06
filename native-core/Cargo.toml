@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 aes-gcm = "0.10"
 hkdf = "0.12"
 hmac = "0.12"
-napi = { version = "3", default-features = false, features = ["napi8"] }
+napi = { version = "3", default-features = false, features = ["napi8", "dyn-symbols"] }
 napi-derive = "3"
 sha2 = "0.10"
 zstd = "0.13"

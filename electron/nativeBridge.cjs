@@ -6,6 +6,7 @@ const { EventEmitter } = require('node:events')
 const crypto = require('node:crypto')
 const zlib = require('node:zlib')
 const { encodeTicket, decodeTicket } = require('./ConnectionTicket.cjs')
+const { ReplayWindow } = require('./ReplayWindow.cjs')
 
 let RustPacketCrypto = null
 let rustSha256File = null
@@ -459,7 +460,7 @@ class NativeBridgeController extends EventEmitter {
     this.sendNoncePrefix = null
     this.receiveNoncePrefix = null
     this.sendCounter = 0n
-    this.receivedCounters = new Set()
+    this.receivedCounters = new ReplayWindow()
     this.peerCapabilities = 0
     this.peerChunkSizeCache = new Map()
     this.pendingRepairSeqs = new Map()
@@ -1666,10 +1667,18 @@ class NativeBridgeController extends EventEmitter {
     if (magic !== QUIC_MAGIC) return
     if (msg.readUInt8(4) !== PROTOCOL_VERSION) return
     let type = msg.readUInt8(5)
+    const encrypted = type === PKT_ENCRYPTED
     if (type === PKT_ENCRYPTED) {
       msg = this.openEncryptedPacket(msg)
       if (!msg || msg.length < HEADER_BYTES) return
+      if (msg.readUInt32BE(0) !== QUIC_MAGIC || msg.readUInt8(4) !== PROTOCOL_VERSION) return
       type = msg.readUInt8(5)
+    }
+    const handshake = type === PKT_HELLO || type === PKT_HELLO_ACK
+    if (handshake) {
+      if (encrypted || !this.ticketSecret) return
+    } else if (!encrypted || !this.sessionKey) {
+      return
     }
     const body = msg.subarray(HEADER_BYTES)
     const endpoint = makeEndpoint(rinfo.address, rinfo.port)
@@ -2303,8 +2312,6 @@ class NativeBridgeController extends EventEmitter {
     try {
       const counterBytes = buffer.subarray(HEADER_BYTES, HEADER_BYTES + 8)
       const counter = counterBytes.readBigUInt64BE()
-      const counterKey = counter.toString()
-      if (this.receivedCounters.has(counterKey)) return null
       const senderRole = this.role === 'host' ? 'guest' : 'host'
       const decipher = crypto.createDecipheriv('aes-256-gcm', this.sessionKey, this.nonceFor(counter, senderRole))
       decipher.setAAD(counterBytes)
@@ -2312,8 +2319,7 @@ class NativeBridgeController extends EventEmitter {
       const plain = Buffer.concat([
         decipher.update(buffer.subarray(HEADER_BYTES + 8, buffer.length - 16)), decipher.final(),
       ])
-      this.receivedCounters.add(counterKey)
-      if (this.receivedCounters.size > 100_000) this.receivedCounters.clear()
+      if (!this.receivedCounters.accept(counter)) return null
       return plain
     } catch (_) {
       return null
