@@ -99,6 +99,7 @@ async fn empty_file_roundtrip() {
 #[test]
 fn manifest_rejects_untrusted_geometry_and_paths_disguised_as_hashes() {
     let mut offer = Manifest {
+        name: String::new(),
         version: 3,
         size: 0,
         block_size: BLOCK_SIZE as u32,
@@ -156,6 +157,7 @@ async fn receiver_quota_rejection_does_not_create_partial_file() {
     let (_server, _client, sender, receiver) = peers().await;
     let (mut send, _recv) = sender.open_bi().await.unwrap();
     let offer = Manifest {
+        name: String::new(),
         version: 3,
         size: 1,
         block_size: BLOCK_SIZE as u32,

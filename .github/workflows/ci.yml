@@ -22,8 +22,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: cargo test --locked --manifest-path transport-core/Cargo.toml
+      - run: cargo build --locked --release --manifest-path transport-core/Cargo.toml --bin p2pshare-engine
+      - run: node --test tests/quic-bridge.test.cjs
       - run: cargo run --locked --release --manifest-path transport-core/Cargo.toml --example loopback -- 64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quic-engine-${{ runner.os }}
+          path: |
+            transport-core/target/release/p2pshare-engine
+            transport-core/target/release/p2pshare-engine.exe
 
   desktop-and-rust:
     runs-on: windows-latest
@@ -32,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
@@ -57,3 +68,7 @@ jobs:
       - uses: android-actions/setup-android@v3
       - run: chmod +x gradlew
       - run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-v2-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk

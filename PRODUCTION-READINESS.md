@@ -2,7 +2,32 @@
 
 Status: **not production ready**. Baseline inspected: `25d4479`.
 
-## Implemented in this migration stage
+## Current milestone: opt-in desktop integration
+
+The original stage below is retained as history. Current desktop preview uses
+the real Rust engine through `electron/QuicBridge.cjs`, with expiring one-guest
+certificate-bound tickets, display names, completed-file retry, free-space
+preflight, bounded session counts and user-confirmed export. Default desktop and
+Android still use v2. See `QUIC-DESKTOP.md` and `RESEARCH-DIRECTION.md`.
+
+Current local checks: 11 Rust transport/pairing tests; five Node security/IPC
+tests; two native bridge tests (including bidirectional transfer, zero-payload
+duplicate and fresh-process partial reuse); TypeScript/Vite build and Clippy.
+The impairment test adds 20 ms RTT and deterministic 1% packet loss. The Electron
+44.2.0 upgrade has a clean production-only npm audit; this is not a security audit
+of the application or its development dependencies.
+
+Still NOT verified: actual Electron window/file picker/save-dialog behavior,
+Windows runtime and installer, Android compilation or JNI, Android lifecycle,
+real-device Wi-Fi/energy performance and the full WAN matrix. Gradle 8.7 download
+again failed with network unreachable. CI is configured, not asserted green.
+
+Before a production release, also complete persistent peer identity/cache
+partitioning, strict CSP/sandbox review, retention policy, independent security
+review and modern development-tool dependency review. The preview's new process
+boundary is not an OS sandbox. No new P2P routing infrastructure is introduced.
+
+## Previous core-only stage
 
 - v2 receivers now require authenticated envelopes for data-plane dispatch.
 - Desktop Node replay protection no longer clears the history at 100,000
@@ -33,14 +58,14 @@ Status: **not production ready**. Baseline inspected: `25d4479`.
 
 ## Required before switching application transport
 
-1. Android NDK/JNI and desktop asynchronous N-API adapters; native owns sockets,
-   streaming and storage, never per-packet UI callbacks.
-2. Authenticated certificate binding in tickets, expiry, explicit accept,
-   single-use pairing, certificate/key persistence and downgrade policy.
+1. Android NDK/JNI adapter; the desktop process adapter is implemented and native
+   owns sockets, streaming and storage without per-packet UI callbacks.
+2. Persistent peer trust, per-file consent choices and stable downgrade policy;
+   expiring certificate-bound one-guest tickets are implemented for desktop.
 3. Source abstraction for seekable Android descriptors and nonseekable SAF
    providers, and platform-correct durable destination publication.
-4. Process-kill/restart and lost-completion tests; persist completed receipts
-   and prevent duplicate retransfers without overwriting existing files.
+4. Real process-kill/power-loss tests; fresh-process partial reuse and completed
+   retries now pass, without overwriting existing completed files.
 5. Aggregate storage/memory/session quotas, consent, deadlines, cancellation,
    safe cleanup and Android foreground-service/network lifecycle behavior.
 6. Discovery and direct route creation, IPv6 and WAN NAT tests. QUIC alone does

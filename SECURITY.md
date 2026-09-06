@@ -1,8 +1,14 @@
 # Security policy
 
-The staged QUIC core is not yet used by the application clients. See
+The QUIC core is available through an opt-in desktop preview, not Android. See
 `THREAT-MODEL.md` and `PRODUCTION-READINESS.md` for trust assumptions and open
 release gates. Neither transport is claimed to be independently audited.
+
+Preview pairing uses server-certificate-validated TLS and a one-use bearer secret;
+it is distinct from the pretrusted mTLS test configuration. Tickets require a
+trusted sharing channel. Current cache reuse can reveal known-content possession
+to a paired peer; persistent peer-scoped cache authorization remains a release
+gate. See `QUIC-DESKTOP.md` and `RESEARCH-DIRECTION.md`.
 
 ## Supported versions
 

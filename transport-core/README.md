@@ -1,7 +1,8 @@
 # Shared QUIC core — staged v3 alpha
 
-This is a working, independently tested Rust data plane, **not yet the transport
-used by either application UI**. Do not advertise P2PShare as migrated to QUIC.
+This Rust data plane now powers an **opt-in desktop preview**, started with
+`npm run desktop:quic` after building the engine and UI. Default desktop and
+Android remain v2. See `../QUIC-DESKTOP.md`; do not claim complete migration.
 
 ```sh
 cargo test --locked --manifest-path transport-core/Cargo.toml
@@ -22,9 +23,9 @@ verification, filesystem sync, and completion receipt are inside it.
 - Shared application layer: bounded manifest parsing, BLAKE3 block hashes,
   revalidated partial files, source mutation checks, quota check, verified
   completion receipt and no-overwrite final publication.
-- Future platform adapters: certificate exchange bound to pairing, file chooser
-  and consent, private storage, capacity checks, progress/cancellation, JNI and
-  N-API integration, lifecycle, discovery and direct NAT traversal.
+- Desktop adapter: ticket-bound certificate trust and bearer authentication,
+  a separate native process, throttled progress, user-confirmed export and
+  disconnect cancellation. JNI, Android lifecycle and NAT traversal remain open.
 
 Quinn was chosen for its portable Rust implementation, runtime-independent
 protocol layer, Tokio adapter and rustls support. This is a staging choice, not
@@ -46,17 +47,18 @@ https://github.com/quinn-rs/quinn (MIT/Apache-2.0).
   elapsed time; subsequent work should pipeline independently verifiable blocks.
 - Resume requires the same source digest and application-private partial
   directory. Partial blocks are rehashed, not trusted from a persisted bitmap.
-- Final publication uses hard links, so the destination filesystem must support
+- Final publication uses hard links in private native storage, so that filesystem must support
   them. Android SAF/document providers need a separate publication adapter.
-- Existing completed destinations are refused, including retry after a lost
-  completion receipt. Idempotent completed-transfer receipts remain necessary.
+- Existing completed content is rehashed and acknowledged with no retransmission;
+  corrupt or non-regular existing destinations are refused, never overwritten.
 - Local storage must be app-private, not writable by an adversary. Metadata
   checks do not eliminate TOCTOU attacks in attacker-controlled directories.
 - A per-call size quota is not total disk reservation or a global session quota.
-- Peer certificates must already be trusted out of band. Ticket exchange,
-  expiry, single-use acceptance and stable trust persistence are not implemented.
+- Low-level mTLS needs out-of-band peer certificates. Desktop pairing instead uses
+  the ticket certificate plus an expiring single-use secret inside TLS. Stable
+  peer identity and peer-partitioned cache authorization are not implemented.
 - Timeouts are transport idle timeouts, not complete application deadlines.
-- No content-defined dedupe, adaptive compression, path learning, UI adapter,
+- No content-defined dedupe, adaptive compression, path learning, Android UI adapter,
   Android service, telemetry dashboard or multipath implementation yet.
 
 Do not enable this by default until the gates in `../PRODUCTION-READINESS.md`

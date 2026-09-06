@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useP2PStore } from '../store/useP2PStore'
 import { Btn, Divider } from '../components/Ui'
+import { getNativeBridge } from '../native/NativeBridge'
 
 export default function HomeScreen() {
   const { createSession, joinSession, state, errorMsg, clearError } = useP2PStore()
@@ -17,7 +18,7 @@ export default function HomeScreen() {
     if (code.replace(/-/g, '').trim().length < 20) { setJoinError('ENTER THE FULL CONNECTION TICKET'); return }
     setJoinError('')
     clearError()
-    await joinSession(code.trim().toUpperCase())
+    await joinSession(code.trim())
   }
 
   return (
@@ -25,7 +26,7 @@ export default function HomeScreen() {
       <div style={{ marginBottom: 48 }}>
         <div className="screen__title">P2P SHARE</div>
         <div className="screen__sub" style={{ marginTop: 6 }}>
-          website UI + native transport engine for max throughput
+          {getNativeBridge()?.transport === 'quic-preview' ? 'QUIC DESKTOP PREVIEW · LAN · FILES ONLY' : 'DIRECT ENCRYPTED FILE TRANSFER'}
         </div>
       </div>
 
@@ -70,10 +71,11 @@ export default function HomeScreen() {
           <input
             className="input large"
             value={code}
-            onChange={e => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 40)); setJoinError('') }}
+            onChange={e => { setCode(e.target.value.slice(0, 8192)); setJoinError('') }}
             onKeyDown={e => { if (e.key === 'Enter') handleJoin() }}
             placeholder="XXXX-XXXX-XXXX-XXXX-XXXX"
-            maxLength={40}
+            maxLength={8192}
+            aria-label="Connection ticket"
             autoFocus
             spellCheck={false}
           />

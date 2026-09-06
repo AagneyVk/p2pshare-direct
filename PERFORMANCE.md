@@ -6,7 +6,9 @@ Run `cargo run --locked --release --manifest-path transport-core/Cargo.toml --ex
 It outputs JSON with source/payload bytes, connection time, verified completion
 time including hashing/sync and effective MiB/s. This is warm-cache loopback,
 not real-device speed. CPU, RSS, p10 and energy measurements are not implemented
-in this harness. The current desktop and Android UI still use v2.
+in this harness. Default desktop and Android still use v2; an opt-in desktop
+preview now drives native QUIC through a two-process-tested command adapter.
+This does not establish a performance comparison with v2 or other products.
 
 Do not compare this result directly with the isolated AES-GCM numbers below.
 
@@ -21,6 +23,13 @@ A subsequent single 4 GiB run completed in 17.683 seconds including hashing,
 sync and confirmation (231.63 effective MiB/s on this local environment).
 Raw output is in `transport-core/benchmarks/linux-loopback-smoke.json`.
 It is not a speedup measurement against v2, a device result or a release guarantee.
+
+The desktop-integration milestone reran that same low-level 4 GiB smoke case:
+17.045 seconds, verified digest, 240.30 effective MiB/s. See
+`transport-core/benchmarks/linux-loopback-desktop-milestone.json`. The small
+difference between single runs is not evidence of an optimization. Separate
+native-process tests verify bidirectional 8 MiB transfer, zero-payload duplicate
+retry and partial reuse after restarting both engines.
 
 ## Rust native core
 

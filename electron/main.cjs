@@ -1,9 +1,22 @@
 const path = require('node:path')
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { pathToFileURL } = require('node:url')
+const { trustedSender } = require('./IpcPolicy.cjs')
+const { app, BrowserWindow, ipcMain, dialog, clipboard } = require('electron')
 const { NativeBridgeController } = require('./nativeBridge.cjs')
+const { QuicBridgeController } = require('./QuicBridge.cjs')
+const quicMode = process.argv.includes('--quic')
 
 let mainWindow = null
 let bridge = null
+let trustedRendererUrl = ''
+let currentTicket = ''
+
+function registerIpc(channel, callback) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!trustedSender(event, mainWindow, trustedRendererUrl)) throw new Error('Untrusted IPC sender')
+    return callback(event, ...args)
+  })
+}
 
 function resolveRendererUrl() {
   const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
@@ -20,11 +33,19 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: quicMode ? ['--p2pshare-quic'] : [],
     },
   })
 
-  bridge = new NativeBridgeController(app)
+  bridge = quicMode ? new QuicBridgeController(app) : new NativeBridgeController(app)
   bridge.bindWindow(mainWindow)
+  const windowBridge = bridge
+  mainWindow.on('closed', () => { windowBridge.disconnect().catch(() => undefined) })
+  const localRenderer = pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href
+  trustedRendererUrl = app.isPackaged || !process.env.VITE_DEV_SERVER_URL ? localRenderer : resolveRendererUrl()
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  mainWindow.webContents.on('will-navigate', (event, url) => { if (url !== trustedRendererUrl) event.preventDefault() })
+  mainWindow.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
 
   bridge.on('event', (payload) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -32,11 +53,30 @@ function createWindow() {
     }
   })
 
-  mainWindow.loadURL(resolveRendererUrl()).catch(async () => {
+  if (app.isPackaged || !process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'))
+  } else mainWindow.loadURL(resolveRendererUrl()).catch(async () => {
+    trustedRendererUrl = localRenderer
     const fallback = path.join(app.getAppPath(), 'dist', 'index.html')
     await mainWindow.loadFile(fallback)
   })
 }
+
+app.on('before-quit', () => { bridge?.disconnect().catch(() => undefined) })
+
+registerIpc('p2p:save-received', async (_event, id) => {
+  if (!quicMode || !mainWindow || _event.sender !== mainWindow.webContents || _event.senderFrame !== mainWindow.webContents.mainFrame) throw new Error('Unsupported request')
+  const item = bridge.received.get(id)
+  if (!item) throw new Error('Verified received file not found')
+  const safeName = (item.name || 'received-file').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 120)
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: path.join(app.getPath('downloads'), safeName), title: 'Save verified received file',
+  })
+  if (!canceled && filePath) {
+    const fs = require('node:fs/promises')
+    await fs.copyFile(item.path, filePath, require('node:fs').constants.COPYFILE_EXCL)
+  }
+})
 
 app.whenReady().then(() => {
   createWindow()
@@ -49,48 +89,55 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-ipcMain.handle('p2p:create-session', async () => {
+registerIpc('p2p:create-session', async () => {
   if (!bridge) throw new Error('Bridge not initialized')
-  return bridge.createSession()
+  currentTicket = await bridge.createSession()
+  return currentTicket
 })
 
-ipcMain.handle('p2p:join-session', async (_event, code) => {
+registerIpc('p2p:copy-ticket', async () => {
+  if (!currentTicket) throw new Error('No current host ticket')
+  clipboard.writeText(currentTicket)
+})
+
+registerIpc('p2p:join-session', async (_event, code) => {
   if (!bridge) throw new Error('Bridge not initialized')
   return bridge.joinSession(code)
 })
 
-ipcMain.handle('p2p:send-message', async (_event, text) => {
+registerIpc('p2p:send-message', async (_event, text) => {
   if (!bridge) throw new Error('Bridge not initialized')
   return bridge.sendMessage(text)
 })
 
-ipcMain.handle('p2p:file-begin', async (_event, meta) => {
+registerIpc('p2p:file-begin', async (_event, meta) => {
   if (!bridge) throw new Error('Bridge not initialized')
   const fileId = await bridge.beginFile(meta)
   return fileId
 })
 
-ipcMain.handle('p2p:file-path', async (_event, payload) => {
+registerIpc('p2p:file-path', async (_event, payload) => {
   if (!bridge) throw new Error('Bridge not initialized')
   return bridge.sendFilePath(payload?.path, payload?.meta)
 })
 
-ipcMain.handle('p2p:file-chunk', async (_event, payload) => {
+registerIpc('p2p:file-chunk', async (_event, payload) => {
   if (!bridge) throw new Error('Bridge not initialized')
   return bridge.sendFileChunk(payload.id, payload.seq, payload.chunk)
 })
 
-ipcMain.handle('p2p:file-chunks', async (_event, payload) => {
+registerIpc('p2p:file-chunks', async (_event, payload) => {
   if (!bridge) throw new Error('Bridge not initialized')
   return bridge.sendFileChunks(payload.id, payload.chunks)
 })
 
-ipcMain.handle('p2p:file-done', async (_event, payload) => {
+registerIpc('p2p:file-done', async (_event, payload) => {
   if (!bridge) throw new Error('Bridge not initialized')
   return bridge.finishFile(payload.id)
 })
 
-ipcMain.handle('p2p:disconnect', async () => {
+registerIpc('p2p:disconnect', async () => {
+  currentTicket = ''
   if (!bridge) return
   return bridge.disconnect()
 })

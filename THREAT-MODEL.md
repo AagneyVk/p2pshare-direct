@@ -1,5 +1,13 @@
 # Migration threat model
 
+Current desktop preview details are in `QUIC-DESKTOP.md`. Its pairing mode uses
+TLS server trust anchored in the private ticket, followed by a random one-use
+bearer secret inside TLS. The low-level mTLS fixture remains separate. Display
+names are bounded and never become private storage paths. IPC validates the
+main frame and expected URL; received-file export is explicitly user-confirmed.
+Paired peers can test possession of known cached content; cache partitioning by
+persistent peer identity/capability remains a production gate.
+
 Assets: file confidentiality/integrity, user-selected source and destination,
 peer identity, pairing secrets, local capacity, completion correctness.
 

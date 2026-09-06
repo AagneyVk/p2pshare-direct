@@ -63,7 +63,7 @@ export const useP2PStore = create<P2PStore>((set, get) => ({
     if (!bridge) return set({ errorMsg: 'Direct native bridge unavailable' })
     try {
       const code = await bridge.createSession()
-      set({ sessionCode: code, role: 'host', state: 'waiting', errorMsg: '' })
+      set({ sessionCode: code, role: 'host', state: get().state === 'connected' ? 'connected' : 'waiting', errorMsg: '' })
     } catch (error) {
       set({ errorMsg: String(error), state: 'idle' })
     }
@@ -72,11 +72,11 @@ export const useP2PStore = create<P2PStore>((set, get) => ({
   async joinSession(code: string) {
     const bridge = getNativeBridge()
     if (!bridge) return set({ errorMsg: 'Direct native bridge unavailable' })
-    const normalized = code.toUpperCase().trim()
+    const normalized = code.trim().startsWith('p2p3:') ? code.trim() : code.toUpperCase().trim()
     set({ sessionCode: normalized, role: 'guest', state: 'joining', errorMsg: '' })
     try {
       await bridge.joinSession(normalized)
-      set({ state: 'connecting' })
+      if (get().state !== 'connected') set({ state: 'connecting' })
     } catch (error) {
       set({ errorMsg: String(error), state: 'idle' })
     }
@@ -96,7 +96,9 @@ export const useP2PStore = create<P2PStore>((set, get) => ({
     void (async () => {
       const pendingId = `pending-${crypto.randomUUID()}`
       try {
-        const prepared = await prepareFileForTransfer(file)
+        const prepared = bridge.transport === 'quic-preview'
+          ? { file, encoding: 'none' as const, originalSize: file.size }
+          : await prepareFileForTransfer(file)
         const pending: FileTransferState = {
           id: pendingId, name: file.name, size: prepared.file.size, progress: 0,
           speed: 0, done: false, valid: null, incoming: false,
@@ -109,7 +111,7 @@ export const useP2PStore = create<P2PStore>((set, get) => ({
           const current = s.transfers[pendingId]
           const next = { ...s.transfers }
           delete next[pendingId]
-          if (current) next[id] = { ...current, id }
+          if (current && !next[id]) next[id] = { ...current, id }
           return { transfers: next }
         })
       } catch (error) {

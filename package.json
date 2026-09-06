@@ -4,8 +4,12 @@
   "version": "1.0.0",
   "type": "module",
   "main": "electron/main.cjs",
+  "engines": { "node": ">=22.12.0" },
   "scripts": {
-    "test": "node --test tests/transport-security.test.cjs",
+    "build:engine": "cargo build --locked --release --manifest-path transport-core/Cargo.toml --bin p2pshare-engine",
+    "desktop:quic": "electron electron/main.cjs --quic",
+    "test:engine": "node --test tests/quic-bridge.test.cjs",
+    "test": "node --test tests/transport-security.test.cjs tests/ipc-policy.test.cjs",
     "dev": "vite",
     "desktop": "electron electron/main.cjs",
     "build": "tsc && vite build",
@@ -15,7 +19,7 @@
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
-    "electron": "^31.0.0",
+    "electron": "44.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^4.4.6"

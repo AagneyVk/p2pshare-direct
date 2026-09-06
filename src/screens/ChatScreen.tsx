@@ -2,9 +2,12 @@ import { useRef, useState, useEffect } from 'react'
 import { useP2PStore } from '../store/useP2PStore'
 import { Btn, Badge, Divider, ProgressBar, FilePick } from '../components/Ui'
 import type { ChatMessage, FileTransferState } from '../webrtc/models'
+import { getNativeBridge } from '../native/NativeBridge'
 
 export default function ChatScreen() {
-  const { messages, transfers, sendMessage, sendFile, disconnect } = useP2PStore()
+  const { messages, transfers, sendMessage, sendFile, disconnect, errorMsg } = useP2PStore()
+  const quic = getNativeBridge()?.transport === 'quic-preview'
+  const [saveError, setSaveError] = useState('')
   const [text, setText] = useState('')
   const bottomRef  = useRef<HTMLDivElement>(null)
   const inputRef   = useRef<HTMLInputElement>(null)
@@ -48,6 +51,13 @@ export default function ChatScreen() {
       </div>
 
       {/* ── File transfers ── */}
+      {quic && <p className="screen__sub">QUIC PREVIEW · FILES ONLY · Save received files using the buttons below. Disconnect cancels active work.</p>}
+      {(errorMsg || saveError) && <p role="alert">{errorMsg || saveError}</p>}
+      {quic && transferList.filter(t => t.incoming && t.done && t.valid).map(t =>
+        <Btn key={`save-${t.id}`} ghost sm onClick={() => {
+          setSaveError('')
+          getNativeBridge()?.saveReceived?.(t.id).catch(() => setSaveError('Could not save. Choose a new filename; existing files are not overwritten.'))
+        }}>SAVE {t.name}</Btn>)}
       {transferList.length > 0 && (
         <div style={{ flexShrink: 0, padding: '10px 0', borderBottom: '1px solid #222' }}>
           {transferList.map(t => <TransferRow key={t.id} t={t} />)}
@@ -64,7 +74,7 @@ export default function ChatScreen() {
           }}>
             NATIVE P2P ENGINE ACTIVE<br />
             <span style={{ color: '#333', marginTop: 8, display: 'block' }}>
-              TYPE A MESSAGE OR SEND A FILE BELOW
+              {quic ? 'SEND A FILE BELOW' : 'TYPE A MESSAGE OR SEND A FILE BELOW'}
             </span>
           </div>
         )}
@@ -85,12 +95,13 @@ export default function ChatScreen() {
           className="input"
           style={{ flex: 1 }}
           value={text}
+          disabled={quic}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
           placeholder="TYPE MESSAGE..."
           autoFocus
         />
-        <Btn onClick={handleSend} disabled={!text.trim()}>SEND</Btn>
+        <Btn onClick={handleSend} disabled={quic || !text.trim()}>SEND</Btn>
         <FilePick onFile={sendFile} />
       </div>
     </div>

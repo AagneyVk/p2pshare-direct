@@ -20,6 +20,9 @@ export type NativeEvent =
   | { type: 'error'; message: string }
 
 export interface NativeBridgeApi {
+  transport?: 'legacy' | 'quic-preview'
+  saveReceived?(id: string): Promise<void>
+  copyTicket?(): Promise<void>
   createSession(): Promise<string>
   joinSession(code: string): Promise<void>
   sendMessage(text: string): Promise<string>

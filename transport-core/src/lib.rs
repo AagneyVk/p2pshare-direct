@@ -1,5 +1,6 @@
-//! Staged v3 data plane. Not yet wired into the desktop or Android UI.
+//! V3 data plane used by the opt-in desktop preview; Android integration pending.
 //! Callers own pairing, user consent, quotas, cancellation and trusted storage.
+pub mod pairing;
 pub mod tls;
 
 use anyhow::{Result, bail, ensure};
@@ -16,6 +17,8 @@ const MAX_MANIFEST: usize = 24 * 1024 * 1024;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
+    #[serde(default)]
+    pub name: String,
     pub version: u32,
     pub size: u64,
     pub block_size: u32,
@@ -32,6 +35,10 @@ fn valid_hash(value: &str) -> bool {
 
 impl Manifest {
     pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.name.len() <= 255 && !self.name.chars().any(char::is_control),
+            "invalid display name"
+        );
         ensure!(self.version == 3, "unsupported protocol version");
         ensure!(
             self.block_size as usize == BLOCK_SIZE,
@@ -74,6 +81,14 @@ pub async fn manifest(path: &Path) -> Result<Manifest> {
         "file exceeds transfer limit"
     );
     let mut result = Manifest {
+        name: path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(60)
+            .collect(),
         version: 3,
         size,
         block_size: BLOCK_SIZE as u32,
@@ -121,7 +136,16 @@ pub struct TransferResult {
 /// Send one file on a fresh bidirectional stream. Await receiver verification.
 /// Prehashing is deliberate in v3-alpha; measure it in end-to-end timings.
 pub async fn send_file(connection: &Connection, source: &Path) -> Result<TransferResult> {
+    send_file_with_progress(connection, source, |_, _| {}).await
+}
+
+pub async fn send_file_with_progress(
+    connection: &Connection,
+    source: &Path,
+    mut progress: impl FnMut(u64, u64),
+) -> Result<TransferResult> {
     let offer = manifest(source).await?;
+    progress(0, offer.size);
     let (mut send, mut recv) = connection.open_bi().await?;
     write_frame(&mut send, &serde_json::to_vec(&offer)?).await?;
     let missing = read_frame(&mut recv, MAX_BLOCKS).await?;
@@ -130,6 +154,13 @@ pub async fn send_file(connection: &Connection, source: &Path) -> Result<Transfe
     let mut file = tokio::fs::File::open(source).await?;
     let mut buffer = vec![0; BLOCK_SIZE];
     let mut payload_bytes = 0;
+    let reused_bytes: u64 = missing
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| **n == 0)
+        .map(|(i, _)| offer.length(i) as u64)
+        .sum();
+    progress(reused_bytes, offer.size);
     for (index, needed) in missing.iter().enumerate() {
         if *needed == 0 {
             continue;
@@ -142,6 +173,7 @@ pub async fn send_file(connection: &Connection, source: &Path) -> Result<Transfe
         );
         send.write_all(bytes).await?;
         payload_bytes += bytes.len() as u64;
+        progress(reused_bytes + payload_bytes, offer.size);
     }
     send.finish()?;
     let receipt = recv.read_to_end(64).await?;
@@ -166,14 +198,21 @@ pub async fn receive_file(
     directory: &Path,
     quota: u64,
 ) -> Result<PathBuf> {
+    receive_file_with_progress(connection, directory, quota, |_, _| {}).await
+}
+
+pub async fn receive_file_with_progress(
+    connection: &Connection,
+    directory: &Path,
+    quota: u64,
+    mut progress: impl FnMut(&Manifest, u64),
+) -> Result<PathBuf> {
     let (mut send, mut recv) = connection.accept_bi().await?;
     let offer: Manifest = serde_json::from_slice(&read_frame(&mut recv, MAX_MANIFEST).await?)?;
     offer.validate()?;
     ensure!(offer.size <= quota, "receiver quota exceeded");
     let partial = directory.join(format!("{}.part", offer.digest));
     let completed = directory.join(&offer.digest);
-    // Do not overwrite any completed file; caller resolves duplicate destination choices.
-    ensure!(!completed.try_exists()?, "destination already exists");
     let lock_path = directory.join(format!("{}.lock", offer.digest));
     let lock = std::fs::OpenOptions::new()
         .write(true)
@@ -184,6 +223,28 @@ pub async fn receive_file(
     // OS advisory lock is released even on process death. Keep the inode in place
     // to avoid a remove/recreate race admitting two writers.
     let _guard = lock;
+    // Lost completion receipts are idempotent: verify existing content, request
+    // no payload, and acknowledge it again. Never truncate a completed file.
+    if let Ok(metadata) = tokio::fs::symlink_metadata(&completed).await {
+        ensure!(
+            metadata.is_file() && !metadata.file_type().is_symlink(),
+            "invalid completed file"
+        );
+        ensure!(
+            metadata.len() == offer.size && manifest(&completed).await?.digest == offer.digest,
+            "completed destination integrity mismatch"
+        );
+        write_frame(&mut send, &vec![0; offer.blocks.len()]).await?;
+        let mut extra = [0];
+        ensure!(
+            recv.read(&mut extra).await?.is_none(),
+            "unexpected duplicate payload"
+        );
+        progress(&offer, offer.size);
+        send.write_all(offer.digest.as_bytes()).await?;
+        send.finish()?;
+        return Ok(completed);
+    }
     if let Ok(metadata) = tokio::fs::symlink_metadata(&partial).await {
         ensure!(
             metadata.is_file() && !metadata.file_type().is_symlink(),
@@ -210,7 +271,26 @@ pub async fn receive_file(
             }
         }
     }
+    let required_bytes: u64 = missing
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| **n == 1)
+        .map(|(i, _)| offer.length(i) as u64)
+        .sum();
+    // Conservative preflight, not an atomic disk reservation. Still handle all
+    // write/sync errors: another process may consume capacity after this check.
+    ensure!(
+        fs2::available_space(directory)? >= required_bytes,
+        "insufficient free space"
+    );
     file.set_len(offer.size).await?;
+    let mut verified: u64 = missing
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| **n == 0)
+        .map(|(i, _)| offer.length(i) as u64)
+        .sum();
+    progress(&offer, verified);
     write_frame(&mut send, &missing).await?;
     for (index, needed) in missing.iter().enumerate() {
         if *needed == 0 {
@@ -225,6 +305,8 @@ pub async fn receive_file(
         file.seek(std::io::SeekFrom::Start(index as u64 * BLOCK_SIZE as u64))
             .await?;
         file.write_all(bytes).await?;
+        verified += bytes.len() as u64;
+        progress(&offer, verified);
     }
     let mut extra = [0];
     if recv.read(&mut extra).await?.is_some() {

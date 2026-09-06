@@ -2,8 +2,9 @@
 
 ## Staged QUIC migration
 
-`transport-core/` now contains an independent Rust QUIC v3-alpha implementation.
-It is **not wired into the clients below**. See `PROTOCOL-V3.md`,
+`transport-core/` contains the Rust QUIC v3-alpha implementation and a native
+engine process. Electron's opt-in `--quic` path uses it through `QuicBridge.cjs`;
+the default desktop and Android clients below still use v2. See `QUIC-DESKTOP.md`, `PROTOCOL-V3.md`,
 `THREAT-MODEL.md` and `PRODUCTION-READINESS.md` for the implemented scope and gates.
 Retain React, Electron shell, Android UI and the direct-only product model.
 Retire duplicated v2 packet crypto, framing, pacing, repair/parity and socket

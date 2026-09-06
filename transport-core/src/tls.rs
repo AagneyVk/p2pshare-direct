@@ -21,7 +21,7 @@ pub fn configurations(
         .with_protocol_versions(&[&rustls::version::TLS13])?
         .with_client_cert_verifier(verifier)
         .with_single_cert(vec![certificate.clone()], key.clone_key())?;
-    server.alpn_protocols = vec![b"p2pshare/3-alpha".to_vec()];
+    server.alpn_protocols = vec![b"p2pshare/3-alpha2".to_vec()];
     let mut client = rustls::ClientConfig::builder_with_provider(provider)
         .with_protocol_versions(&[&rustls::version::TLS13])?
         .with_root_certificates(roots)
@@ -33,6 +33,13 @@ pub fn configurations(
     let mut client = quinn::ClientConfig::new(Arc::new(
         quinn::crypto::rustls::QuicClientConfig::try_from(client)?,
     ));
+    let transport = transport_config()?;
+    server.transport_config(transport.clone());
+    client.transport_config(transport);
+    Ok((server, client))
+}
+
+pub(crate) fn transport_config() -> Result<Arc<quinn::TransportConfig>> {
     let mut transport = quinn::TransportConfig::default();
     transport.max_concurrent_bidi_streams(1u32.into());
     transport.max_concurrent_uni_streams(0u32.into());
@@ -43,8 +50,6 @@ pub fn configurations(
     transport.stream_receive_window((512u32 * 1024).into());
     transport.send_window(512 * 1024);
     transport.max_idle_timeout(Some(std::time::Duration::from_secs(30).try_into()?));
-    let transport = Arc::new(transport);
-    server.transport_config(transport.clone());
-    client.transport_config(transport);
-    Ok((server, client))
+    transport.keep_alive_interval(Some(std::time::Duration::from_secs(10)));
+    Ok(Arc::new(transport))
 }

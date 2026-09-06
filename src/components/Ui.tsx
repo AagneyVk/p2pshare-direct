@@ -65,6 +65,8 @@ export function Divider() {
 
 // ── Session Code Display ──────────────────────────────────────────
 export function CodeDisplay({ code }: { code: string }) {
+  if (code.startsWith('p2p3:')) return <textarea readOnly aria-label="Private QUIC connection ticket"
+    value={code} style={{ width: '100%', height: 96, fontSize: 11, resize: 'vertical' }} />
   return (
     <div className="session-code">
       {code || '······'}

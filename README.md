@@ -37,6 +37,11 @@ database, cloud upload, TURN server, or payload relay.
 
 ## Project status
 
+**New opt-in desktop QUIC preview:** `npm run build:engine`, `npm run build`,
+then `npm run desktop:quic` on both desktops. See
+[QUIC desktop preview](QUIC-DESKTOP.md) for capabilities and limitations.
+The default app and Android still use v2; v3 is not Android-compatible yet.
+
 | Area | Status |
 | --- | --- |
 | Desktop native UDP | Implemented |
@@ -103,7 +108,7 @@ Android requires API 26 or newer; the project compiles against SDK 35.
 
 ### Desktop
 
-Requirements: Node.js 18+, Rust stable, and a C/C++ linker supported by Rust.
+Requirements: Node.js 22.12+ (24 recommended), Rust stable, and a C/C++ linker supported by Rust.
 
 ```bash
 git clone https://github.com/AagneyVk/p2pshare-direct.git

@@ -1,11 +1,20 @@
 import { useP2PStore } from '../store/useP2PStore'
+import { useState } from 'react'
+import { getNativeBridge } from '../native/NativeBridge'
 import { Btn, CodeDisplay, Spinner, Badge, Divider } from '../components/Ui'
 
 export default function HostScreen() {
   const { sessionCode, state, disconnect } = useP2PStore()
+  const [copyStatus, setCopyStatus] = useState('')
 
-  const copyCode = () => {
-    if (sessionCode) navigator.clipboard.writeText(sessionCode).catch(() => {})
+  const copyCode = async () => {
+    if (!sessionCode) return
+    try {
+      const bridge = getNativeBridge()
+      if (bridge?.copyTicket) await bridge.copyTicket()
+      else await navigator.clipboard.writeText(sessionCode)
+      setCopyStatus('Ticket copied. Share it privately.')
+    } catch { setCopyStatus('Could not copy. Select the ticket and copy it manually.') }
   }
 
   // Show connecting state inline instead of switching screens
@@ -38,8 +47,10 @@ export default function HostScreen() {
         {sessionCode && (
           <div style={{ marginTop: 12 }}>
             <Btn ghost sm onClick={copyCode}>COPY CODE</Btn>
+            <p role="status" className="screen__sub">{copyStatus}</p>
           </div>
         )}
+        {sessionCode.startsWith('p2p3:') && <p className="screen__sub">PRIVATE · EXPIRES IN 5 MINUTES · ONE GUEST<br />Both desktops must use QUIC preview on a reachable direct network. Creating a session permits its guest to send files.</p>}
       </div>
 
       <Divider />
