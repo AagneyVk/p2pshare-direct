@@ -28,6 +28,11 @@ delete after sending, but a killed process can leave staging data in app cache.
 
 ## Build and validation
 
+Android/Linux publish verified files with `renameat2(RENAME_NOREPLACE)`.
+Android app policy forbids hard links, so the desktop hard-link publication
+method cannot be used there. No overwrite fallback is permitted. A regression
+test checks that destination collisions preserve both existing and partial data.
+
 Install JDK 17, Android SDK 35, NDK 28.0.13004108, stable Rust with targets
 `aarch64-linux-android` and `x86_64-linux-android`, and
 `cargo install cargo-ndk --version 4.1.2 --locked`. Then run in `android/`:

@@ -5,8 +5,9 @@ pub mod engine;
 #[cfg(unix)]
 mod android;
 pub mod tls;
+mod publication;
 
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use fs2::FileExt;
 use quinn::{Connection, RecvStream, SendStream};
 use serde::{Deserialize, Serialize};
@@ -322,9 +323,7 @@ pub async fn receive_file_with_progress(
         manifest(&partial).await?.digest == offer.digest,
         "whole-file integrity failure"
     );
-    // Hard-link publication is atomic and refuses an existing destination.
-    tokio::fs::hard_link(&partial, &completed).await?;
-    tokio::fs::remove_file(&partial).await?;
+    publication::publish(&partial, &completed).context("publish verified file")?;
     #[cfg(unix)]
     std::fs::File::open(directory)?.sync_all()?;
     send.write_all(offer.digest.as_bytes()).await?;
