@@ -33,6 +33,13 @@ jobs:
       - if: runner.os == 'Linux'
         run: python3 tests/android-native-interop.py
       - run: cargo run --locked --release --manifest-path transport-core/Cargo.toml --example loopback -- 64
+      - if: runner.os == 'Linux'
+        run: python3 tests/pipeline-benchmark.py
+      - if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-benchmark
+          path: pipeline-benchmark.json
       - uses: actions/upload-artifact@v4
         with:
           name: quic-engine-${{ runner.os }}

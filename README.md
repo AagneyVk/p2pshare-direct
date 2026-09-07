@@ -37,6 +37,10 @@ database, cloud upload, TURN server, or payload relay.
 
 ## Project status
 
+**Transfer optimization milestone:** Android direct descriptor sources and a
+shared bounded QUIC send pipeline. See [research and measurement](TRANSFER-RESEARCH.md)
+for implemented scope, the serial reference and benchmark limitations.
+
 **New opt-in desktop QUIC preview:** `npm run build:engine`, `npm run build`,
 then `npm run desktop:quic` on both desktops. See
 [QUIC desktop preview](QUIC-DESKTOP.md) for capabilities and limitations.

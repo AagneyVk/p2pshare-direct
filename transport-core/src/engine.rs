@@ -1,6 +1,6 @@
 //! Local JSON-lines adapter. No network/file payload crosses the UI boundary.
 use anyhow::{Result, ensure};
-use crate::{pairing, receive_file_with_progress, send_file_with_progress};
+use crate::{pairing, receive_file_with_progress, send_open_file_with_progress};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -31,6 +31,11 @@ enum Command {
     Send {
         id: String,
         path: PathBuf,
+    },
+    SendDescriptor {
+        id: String,
+        handle: i64,
+        name: String,
     },
 }
 
@@ -174,7 +179,28 @@ where
                     }
                 });
             }
-            Command::Send { id, path } => {
+            command @ (Command::Send { .. } | Command::SendDescriptor { .. }) => {
+                let (id, name, source) = match command {
+                    Command::Send { id, path } => {
+                        let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        (id, name, tokio::fs::File::open(path).await.map_err(anyhow::Error::from))
+                    }
+                    Command::SendDescriptor { id, handle, name } => {
+                        #[cfg(unix)]
+                        let source = crate::android::take_source(handle).map(tokio::fs::File::from_std);
+                        #[cfg(not(unix))]
+                        let source = { let _ = handle; Err(anyhow::anyhow!("descriptor sources unsupported")) };
+                        (id, name, source)
+                    }
+                    _ => unreachable!(),
+                };
+                let source = match source {
+                    Ok(source) => source,
+                    Err(_) => {
+                        events.send(json!({"event":"response", "id":id, "error":"Cannot open file source"})).await?;
+                        continue;
+                    }
+                };
                 let connection = session.lock().await.as_ref().map(|(_, c)| c.clone());
                 let permit = sending.clone().try_acquire_owned();
                 let (Some(connection), Ok(permit)) = (connection, permit) else {
@@ -184,10 +210,9 @@ where
                 let events = events.clone();
                 tasks.spawn(async move {
                     let _permit = permit;
-                    let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
                     let started = Instant::now();
                     let mut last = started - Duration::from_secs(1);
-                    let result = send_file_with_progress(&connection, &path, |bytes, size| {
+                    let result = send_open_file_with_progress(&connection, source, &name, |bytes, size| {
                         if last.elapsed() >= Duration::from_millis(150) {
                             last = Instant::now();
                             let _ = events.try_send(json!({"event":"progress","id":id,"name":name,

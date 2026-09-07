@@ -12,10 +12,11 @@ or hotspot. Create on either device, privately copy the FULL case-sensitive
 `p2p3:` ticket, and join on the other within five minutes. One ticket admits one
 guest. Hosting consents to receiving that guest's files.
 
-Select a file on either side. Android stages document-provider input to private
-disk using a bounded 1 MiB buffer, then Rust handles QUIC, hashes and disk IO.
-This supports nonseekable providers but costs one local copy and needs extra
-free space; it is not zero-copy. Received verified files are exported to Downloads
+Select a file on either side. Android gives regular, seekable descriptors directly
+to Rust, avoiding a staging copy. Nonseekable providers retain the bounded 1 MiB
+staging fallback and need extra disk space. Rust pipelines block reads/hashes and
+QUIC sends on both platforms; see `TRANSFER-RESEARCH.md`. This is not kernel
+zero-copy. Received verified files are exported to Downloads
 on Android 10+, or app-specific external Downloads on Android 8–9. Desktop uses
 its SAVE dialog. Display names are sanitized; native storage uses content hashes.
 

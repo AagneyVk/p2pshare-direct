@@ -22,6 +22,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** Same bounded JSON command protocol and Rust data plane as desktop --quic. */
 class QuicTransport(private val context: Context, private val listener: DirectUdpTransport.Listener) : Closeable {
     private external fun nativeRun(fd: Int): Int
+    private external fun nativeRegister(fd: Int): Long
+    private external fun nativeRelease(handle: Long)
     private val pending = ConcurrentHashMap<String, CompletableFuture<JSONObject>>()
     private val closed = AtomicBoolean(false)
     private val sending = AtomicBoolean(false)
@@ -122,6 +124,20 @@ class QuicTransport(private val context: Context, private val listener: DirectUd
                 var name = "file"
                 context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                     if (it.moveToFirst()) name = safeName(it.getString(0))
+                }
+                // Native owns a duplicate until completion, even if Java cancels.
+                // Pipe/cloud providers retain the bounded staging fallback below.
+                val descriptor = runCatching { context.contentResolver.openFileDescriptor(uri, "r") }.getOrNull()
+                descriptor?.use { fd ->
+                    val handle = nativeRegister(fd.fd)
+                    if (handle > 0) {
+                        try {
+                            listener.onStatus("Reading $name directly • No staging copy")
+                            request(JSONObject().put("op", "send_descriptor").put("handle", handle).put("name", name), 24 * 60 * 60L)
+                            listener.onStatus("Verified by peer: $name")
+                            return@execute
+                        } finally { nativeRelease(handle) }
+                    }
                 }
                 staging = File(context.cacheDir, "quic-send-${UUID.randomUUID()}").apply { check(mkdir()) }
                 val source = File(staging, name)

@@ -40,6 +40,7 @@ class QuicIntegrationTest {
             val received = b.files.poll(30, TimeUnit.SECONDS)
             assertNotNull("Receive failed: sender=${a.errors.peek()}, receiver=${b.errors.peek()}, status=${a.statuses}", received)
             assertTrue(payload.contentEquals(received!!.readBytes()))
+            assertTrue("Regular file unexpectedly staged: ${a.statuses}", a.statuses.any { it.contains("No staging copy") })
             guest.sendFile(Uri.fromFile(source))
             val returned = a.files.poll(30, TimeUnit.SECONDS)
             assertNotNull("Return failed: sender=${b.errors.peek()}, receiver=${a.errors.peek()}, status=${b.statuses}", returned)

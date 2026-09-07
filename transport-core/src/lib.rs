@@ -77,6 +77,10 @@ async fn read_block(file: &mut tokio::fs::File, index: usize, bytes: &mut [u8]) 
 
 pub async fn manifest(path: &Path) -> Result<Manifest> {
     let mut file = tokio::fs::File::open(path).await?;
+    manifest_file(&mut file, &path.file_name().unwrap_or_default().to_string_lossy()).await
+}
+
+async fn manifest_file(file: &mut tokio::fs::File, name: &str) -> Result<Manifest> {
     let metadata = file.metadata().await?;
     ensure!(metadata.is_file(), "source must be a regular file");
     let size = metadata.len();
@@ -85,10 +89,7 @@ pub async fn manifest(path: &Path) -> Result<Manifest> {
         "file exceeds transfer limit"
     );
     let mut result = Manifest {
-        name: path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
+        name: name
             .chars()
             .filter(|c| !c.is_control())
             .take(60)
@@ -103,7 +104,7 @@ pub async fn manifest(path: &Path) -> Result<Manifest> {
     let mut buffer = vec![0; BLOCK_SIZE];
     for index in 0..size.div_ceil(BLOCK_SIZE as u64) as usize {
         let bytes = &mut buffer[..result.length(index)];
-        read_block(&mut file, index, bytes).await?;
+        read_block(file, index, bytes).await?;
         whole.update(bytes);
         result.blocks.push(blake3::hash(bytes).to_hex().to_string());
     }
@@ -146,17 +147,26 @@ pub async fn send_file(connection: &Connection, source: &Path) -> Result<Transfe
 pub async fn send_file_with_progress(
     connection: &Connection,
     source: &Path,
+    progress: impl FnMut(u64, u64),
+) -> Result<TransferResult> {
+    let file = tokio::fs::File::open(source).await?;
+    send_open_file_with_progress(connection, file,
+        &source.file_name().unwrap_or_default().to_string_lossy(), progress).await
+}
+
+pub async fn send_open_file_with_progress(
+    connection: &Connection,
+    mut file: tokio::fs::File,
+    name: &str,
     mut progress: impl FnMut(u64, u64),
 ) -> Result<TransferResult> {
-    let offer = manifest(source).await?;
+    let offer = manifest_file(&mut file, name).await?;
     progress(0, offer.size);
     let (mut send, mut recv) = connection.open_bi().await?;
     write_frame(&mut send, &serde_json::to_vec(&offer)?).await?;
     let missing = read_frame(&mut recv, MAX_BLOCKS).await?;
     ensure!(missing.len() == offer.blocks.len(), "invalid resume map");
     ensure!(missing.iter().all(|b| *b <= 1), "invalid resume bit");
-    let mut file = tokio::fs::File::open(source).await?;
-    let mut buffer = vec![0; BLOCK_SIZE];
     let mut payload_bytes = 0;
     let reused_bytes: u64 = missing
         .iter()
@@ -165,7 +175,9 @@ pub async fn send_file_with_progress(
         .map(|(i, _)| offer.length(i) as u64)
         .sum();
     progress(reused_bytes, offer.size);
-    for (index, needed) in missing.iter().enumerate() {
+    if std::env::var("P2PSHARE_SEND_MODE").as_deref() == Ok("serial") {
+      let mut buffer = vec![0; BLOCK_SIZE];
+      for (index, needed) in missing.iter().enumerate() {
         if *needed == 0 {
             continue;
         }
@@ -178,6 +190,38 @@ pub async fn send_file_with_progress(
         send.write_all(bytes).await?;
         payload_bytes += bytes.len() as u64;
         progress(reused_bytes + payload_bytes, offer.size);
+      }
+    } else {
+        // Two queued blocks, one producer block and one consumer block at most.
+        // Dropping the receiver on cancellation stops blocking_send/read-ahead.
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes>>(2);
+        let mut source = file.into_std().await;
+        let plan = offer.clone();
+        tokio::task::spawn_blocking(move || {
+            use std::io::{Read, Seek};
+            for (index, needed) in missing.into_iter().enumerate() {
+                if needed == 0 { continue; }
+                if tx.is_closed() { break; }
+                let block = (|| -> Result<bytes::Bytes> {
+                    let mut data = vec![0; plan.length(index)];
+                    source.seek(std::io::SeekFrom::Start(index as u64 * BLOCK_SIZE as u64))?;
+                    source.read_exact(&mut data)?;
+                    ensure!(blake3::hash(&data).to_hex().as_str() == plan.blocks[index],
+                        "source changed during transfer");
+                    Ok(bytes::Bytes::from(data))
+                })();
+                let failed = block.is_err();
+                if tx.blocking_send(block).is_err() || failed { break; }
+            }
+        });
+        while let Some(block) = rx.recv().await {
+            let block = block?;
+            let length = block.len() as u64;
+            send.write_chunk(block).await?;
+            payload_bytes += length;
+            progress(reused_bytes + payload_bytes, offer.size);
+        }
+        ensure!(payload_bytes + reused_bytes == offer.size, "source pipeline ended early");
     }
     send.finish()?;
     let receipt = recv.read_to_end(64).await?;

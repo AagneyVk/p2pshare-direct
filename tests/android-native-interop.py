@@ -23,6 +23,7 @@ class Peer:
         self.thread = None
         if native:
             library = ctypes.CDLL(str(RELEASE / "libp2pshare_transport.so"))
+            self.library = library
             run = library.Java_com_p2pshare_android_QuicTransport_nativeRun
             run.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int]
             run.restype = ctypes.c_int
@@ -92,7 +93,17 @@ class Interop(unittest.TestCase):
                     source.write_bytes(data)
                     for sender, receiver in ((android, desktop), (desktop, android)):
                         for attempt in range(2):
-                            sender.command(op="send", id="send", path=str(source))
+                            if sender is android:
+                                register = android.library.Java_com_p2pshare_android_QuicTransport_nativeRegister
+                                register.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int]
+                                register.restype = ctypes.c_int64
+                                with source.open("rb") as opened:
+                                    handle = register(None, None, opened.fileno())
+                                self.assertGreater(handle, 0)
+                                # Original descriptor is closed before the queued command.
+                                sender.command(op="send_descriptor", id="send", handle=handle, name="sample.bin")
+                            else:
+                                sender.command(op="send", id="send", path=str(source))
                             received = receiver.event("received")
                             receipt = sender.event("response", "send")["value"]
                             self.assertEqual(Path(received["path"]).read_bytes(), data)
