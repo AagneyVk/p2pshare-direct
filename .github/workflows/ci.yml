@@ -36,11 +36,11 @@ jobs:
       - if: runner.os == 'Linux'
         run: python3 tests/pipeline-benchmark.py
       - if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pipeline-benchmark
           path: pipeline-benchmark.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: quic-engine-${{ runner.os }}
           path: |
@@ -95,7 +95,7 @@ jobs:
           arch: x86_64
           working-directory: android
           script: ./gradlew connectedDebugAndroidTest --no-daemon
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-quic-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
