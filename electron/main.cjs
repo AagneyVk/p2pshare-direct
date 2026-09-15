@@ -18,6 +18,13 @@ function registerIpc(channel, callback) {
   })
 }
 
+function rendererIndexPath() {
+  // When launched with `electron electron/main.cjs`, app.getAppPath() can
+  // resolve to the electron/ directory. The renderer is a repository-level
+  // sibling, so resolve it from this entrypoint in both dev and packaged apps.
+  return path.join(__dirname, '..', 'dist', 'index.html')
+}
+
 function resolveRendererUrl() {
   const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
   return devUrl
@@ -41,7 +48,7 @@ function createWindow() {
   bridge.bindWindow(mainWindow)
   const windowBridge = bridge
   mainWindow.on('closed', () => { windowBridge.disconnect().catch(() => undefined) })
-  const localRenderer = pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href
+  const localRenderer = pathToFileURL(rendererIndexPath()).href
   trustedRendererUrl = app.isPackaged || !process.env.VITE_DEV_SERVER_URL ? localRenderer : resolveRendererUrl()
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   mainWindow.webContents.on('will-navigate', (event, url) => { if (url !== trustedRendererUrl) event.preventDefault() })
@@ -54,10 +61,10 @@ function createWindow() {
   })
 
   if (app.isPackaged || !process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'))
+    mainWindow.loadFile(rendererIndexPath())
   } else mainWindow.loadURL(resolveRendererUrl()).catch(async () => {
     trustedRendererUrl = localRenderer
-    const fallback = path.join(app.getAppPath(), 'dist', 'index.html')
+    const fallback = rendererIndexPath()
     await mainWindow.loadFile(fallback)
   })
 }
