@@ -9,7 +9,7 @@
 [![Status: Experimental](https://img.shields.io/badge/status-experimental-orange.svg)](#project-status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Android-4c8bf5.svg)](#platform-support)
 
-[Architecture](ARCHITECTURE.md) · [Performance](PERFORMANCE.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
+[Architecture](ARCHITECTURE.md) · [Updates](UPDATES.md) · [Performance](PERFORMANCE.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 </div>
 
@@ -41,12 +41,12 @@ database, cloud upload, TURN server, or payload relay.
 shared bounded QUIC send pipeline. See [research and measurement](TRANSFER-RESEARCH.md)
 for implemented scope, the serial reference and benchmark limitations.
 
-**New opt-in desktop QUIC preview:** `npm run build:engine`, `npm run build`,
-then `npm run desktop:quic` on both desktops. See
-[QUIC desktop preview](QUIC-DESKTOP.md) for capabilities and limitations.
-The Android launcher now uses the same QUIC preview through JNI; see
-[Android interoperability](QUIC-ANDROID.md). Desktop must use `desktop:quic`
-to pair with Android. Desktop's default launch still uses v2.
+**Shared transport enabled by default:** `npm run desktop` now builds the React
+renderer and Rust QUIC engine before launching. Windows and Android use the same
+v3 engine, ticket format, authentication and file-transfer path. The former v2
+desktop transport is available only through `npm run desktop:legacy` while it is
+being retired. See [QUIC desktop](QUIC-DESKTOP.md) and
+[Android interoperability](QUIC-ANDROID.md).
 
 | Area | Status |
 | --- | --- |
@@ -120,13 +120,14 @@ Requirements: Node.js 22.12+ (24 recommended), Rust stable, and a C/C++ linker s
 git clone https://github.com/AagneyVk/p2pshare-direct.git
 cd p2pshare-direct
 npm ci
-npm run build:native
-npm run build
 npm run desktop
 ```
 
-For UI development, run `npm run dev` and `npm run desktop` in separate
-terminals. If the Rust addon is unavailable, Electron falls back to Node crypto.
+`npm run desktop` performs the required renderer and Rust-engine builds, so a
+fresh checkout cannot launch against a missing `dist/index.html`. For UI-only
+development, run `npm run dev`; production transfers require the native engine.
+The Windows installer and Android app include an explicit verified update flow;
+see [UPDATES.md](UPDATES.md).
 
 ### Android
 

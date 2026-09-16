@@ -4,12 +4,16 @@ const { trustedSender } = require('./IpcPolicy.cjs')
 const { app, BrowserWindow, ipcMain, dialog, clipboard } = require('electron')
 const { NativeBridgeController } = require('./nativeBridge.cjs')
 const { QuicBridgeController } = require('./QuicBridge.cjs')
-const quicMode = process.argv.includes('--quic')
+const { AppUpdater } = require('./AppUpdater.cjs')
+// QUIC is the production transport shared by Windows and Android. The old
+// Electron-only data plane remains available solely for compatibility tests.
+const quicMode = !process.argv.includes('--legacy')
 
 let mainWindow = null
 let bridge = null
 let trustedRendererUrl = ''
 let currentTicket = ''
+const updater = new AppUpdater(app)
 
 function registerIpc(channel, callback) {
   ipcMain.handle(channel, (event, ...args) => {
@@ -40,7 +44,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      additionalArguments: quicMode ? ['--p2pshare-quic'] : [],
+      additionalArguments: quicMode ? ['--p2pshare-quic'] : ['--p2pshare-legacy'],
     },
   })
 
@@ -148,3 +152,8 @@ registerIpc('p2p:disconnect', async () => {
   if (!bridge) return
   return bridge.disconnect()
 })
+
+registerIpc('p2p:update-info', async () => updater.info())
+registerIpc('p2p:update-check', async () => updater.check())
+registerIpc('p2p:update-download', async () => updater.download())
+registerIpc('p2p:update-install', async () => updater.install())

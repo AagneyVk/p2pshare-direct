@@ -1,5 +1,5 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron')
-const quicMode = process.argv.includes('--p2pshare-quic')
+const quicMode = !process.argv.includes('--p2pshare-legacy')
 
 const MIN_INFLIGHT_BYTES = 8 * 1024 * 1024
 const MAX_INFLIGHT_BYTES = 256 * 1024 * 1024
@@ -179,7 +179,11 @@ async function sendFile(file, encoding = 'none', originalSize = file.size, origi
 }
 
 contextBridge.exposeInMainWorld('p2pNativeBridge', {
-  transport: quicMode ? 'quic-preview' : 'legacy',
+  transport: quicMode ? 'quic' : 'legacy',
+  updateInfo: () => ipcRenderer.invoke('p2p:update-info'),
+  checkForUpdate: () => ipcRenderer.invoke('p2p:update-check'),
+  downloadUpdate: () => ipcRenderer.invoke('p2p:update-download'),
+  installUpdate: () => ipcRenderer.invoke('p2p:update-install'),
   copyTicket: () => ipcRenderer.invoke('p2p:copy-ticket'),
   saveReceived: (id) => ipcRenderer.invoke('p2p:save-received', id),
   createSession: () => ipcRenderer.invoke('p2p:create-session'),

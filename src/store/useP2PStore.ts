@@ -96,7 +96,7 @@ export const useP2PStore = create<P2PStore>((set, get) => ({
     void (async () => {
       const pendingId = `pending-${crypto.randomUUID()}`
       try {
-        const prepared = bridge.transport === 'quic-preview'
+        const prepared = bridge.transport === 'quic'
           ? { file, encoding: 'none' as const, originalSize: file.size }
           : await prepareFileForTransfer(file)
         const pending: FileTransferState = {

@@ -23,6 +23,7 @@ import java.util.concurrent.Executors
 class MainActivity : Activity(), DirectUdpTransport.Listener {
     private var transport: QuicTransport? = null
     private val worker = Executors.newSingleThreadScheduledExecutor()
+    private val updateWorker = Executors.newSingleThreadExecutor()
     private var sessionCode = ""
     private var generation = 0L
 
@@ -32,6 +33,10 @@ class MainActivity : Activity(), DirectUdpTransport.Listener {
     private lateinit var progress: ProgressBar
     private lateinit var transfer: TextView
     private lateinit var sendButton: Button
+    private lateinit var updateStatus: TextView
+    private lateinit var updateButton: Button
+    private var updateRelease: AppUpdates.Release? = null
+    private var updateFile: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,6 +125,51 @@ class MainActivity : Activity(), DirectUdpTransport.Listener {
             addView(progress, rowParams())
             transfer = TextView(context).styled("", 14f)
             addView(transfer, rowParams())
+
+            addView(TextView(context).styled("APP UPDATES", 13f), rowParams())
+            updateStatus = TextView(context).styled("P2P SHARE ${BuildConfig.VERSION_NAME}", 13f)
+            addView(updateStatus, rowParams())
+            updateButton = Button(context).apply {
+                text = "CHECK FOR UPDATES"
+                setOnClickListener { handleUpdate() }
+            }
+            addView(updateButton, rowParams())
+        }
+    }
+
+    private fun handleUpdate() {
+        val ready = updateFile
+        if (ready != null) {
+            try {
+                updateStatus.text = if (AppUpdates.install(this, ready))
+                    "Confirm the verified update in Android" else
+                    "Allow installs from P2P Share, return here, then tap Install update again"
+            } catch (error: Throwable) { updateStatus.text = "UPDATE ERROR: ${error.message}" }
+            return
+        }
+        updateButton.isEnabled = false
+        val release = updateRelease
+        updateStatus.text = if (release == null) "Checking verified GitHub releases…" else "Downloading and verifying SHA-256…"
+        updateWorker.execute {
+            try {
+                if (release == null) {
+                    val found = AppUpdates.check()
+                    runOnUiThread {
+                        updateRelease = found
+                        updateStatus.text = found?.let { "Update available: ${it.tag}" } ?: "You are on the latest release"
+                        updateButton.text = if (found == null) "CHECK FOR UPDATES" else "DOWNLOAD UPDATE"
+                    }
+                } else {
+                    val downloaded = AppUpdates.download(applicationContext, release)
+                    runOnUiThread {
+                        updateFile = downloaded
+                        updateStatus.text = "Update verified; app data will be kept"
+                        updateButton.text = "INSTALL UPDATE"
+                    }
+                }
+            } catch (error: Throwable) {
+                runOnUiThread { updateStatus.text = "UPDATE ERROR: ${error.message ?: error.javaClass.simpleName}" }
+            } finally { runOnUiThread { updateButton.isEnabled = true } }
         }
     }
 
@@ -262,6 +312,7 @@ class MainActivity : Activity(), DirectUdpTransport.Listener {
     override fun onDestroy() {
         generation++
         worker.shutdownNow()
+        updateWorker.shutdownNow()
         transport?.close()
         super.onDestroy()
     }

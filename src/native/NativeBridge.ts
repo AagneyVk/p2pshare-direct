@@ -20,7 +20,11 @@ export type NativeEvent =
   | { type: 'error'; message: string }
 
 export interface NativeBridgeApi {
-  transport?: 'legacy' | 'quic-preview'
+  transport?: 'legacy' | 'quic'
+  updateInfo?(): Promise<{ version: string; packaged: boolean; platform: string }>
+  checkForUpdate?(): Promise<{ tag: string; url: string; digest: string; size: number } | null>
+  downloadUpdate?(): Promise<{ tag: string }>
+  installUpdate?(): Promise<boolean>
   saveReceived?(id: string): Promise<void>
   copyTicket?(): Promise<void>
   createSession(): Promise<string>

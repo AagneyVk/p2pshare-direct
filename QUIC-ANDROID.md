@@ -1,13 +1,13 @@
-# Android / desktop QUIC preview
+# Android / desktop QUIC transport
 
-The Android launcher now uses the same Rust engine and v3 ticket ALPN as
-`npm run desktop:quic`. Desktop's default `npm run desktop` remains v2 and
-cannot pair with this Android preview. Legacy Android v2 sources are retained.
+Android and desktop use the same Rust engine, v3 ticket and ALPN. The default
+`npm run desktop` command is directly compatible with Android. Legacy Android
+v2 sources remain only as migration reference.
 
 ## Connect
 
-Install the `android-quic-debug` APK from a successful CI run. Use ARM64 Android
-8+ or an x86-64 emulator. Run the desktop QUIC preview on the same reachable LAN
+Install the `android-quic-debug` test APK or signed `P2PShare.apk` release. Use ARM64 Android
+8+ or an x86-64 emulator. Run P2PShare desktop on the same reachable LAN
 or hotspot. Create on either device, privately copy the FULL case-sensitive
 `p2p3:` ticket, and join on the other within five minutes. One ticket admits one
 guest. Hosting consents to receiving that guest's files.

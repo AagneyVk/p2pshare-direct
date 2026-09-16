@@ -50,7 +50,7 @@ export default function HostScreen() {
             <p role="status" className="screen__sub">{copyStatus}</p>
           </div>
         )}
-        {sessionCode.startsWith('p2p3:') && <p className="screen__sub">PRIVATE · EXPIRES IN 5 MINUTES · ONE GUEST<br />Both desktops must use QUIC preview on a reachable direct network. Creating a session permits its guest to send files.</p>}
+        {sessionCode.startsWith('p2p3:') && <p className="screen__sub">PRIVATE · EXPIRES IN 5 MINUTES · ONE GUEST<br />Open P2PShare on Windows or Android on the same reachable LAN. Creating a session permits its guest to send files.</p>}
       </div>
 
       <Divider />

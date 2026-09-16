@@ -112,7 +112,7 @@ class QuicBridgeController extends EventEmitter {
       return id
     } finally { this.outbound = false }
   }
-  async sendMessage() { throw new Error('QUIC preview supports files only; use legacy mode for chat') }
+  async sendMessage() { throw new Error('The production QUIC transport currently supports verified files only') }
   async beginFile() { throw new Error('QUIC requires a real local file; renderer compression is disabled') }
   async disconnect() {
     const child = this.child; this.child = null

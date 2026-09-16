@@ -1,7 +1,7 @@
 # Shared QUIC core — staged v3 alpha
 
 This Rust data plane now powers an **opt-in desktop preview**, started with
-`npm run desktop:quic` after building the engine and UI, and Android's JNI preview.
+`npm run desktop` builds and launches the shared engine and UI; Android uses the same engine through JNI.
 Default desktop remains v2. See `../QUIC-DESKTOP.md` and `../QUIC-ANDROID.md`;
 this is not a production release.
 

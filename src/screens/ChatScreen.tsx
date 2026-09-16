@@ -6,7 +6,7 @@ import { getNativeBridge } from '../native/NativeBridge'
 
 export default function ChatScreen() {
   const { messages, transfers, sendMessage, sendFile, disconnect, errorMsg } = useP2PStore()
-  const quic = getNativeBridge()?.transport === 'quic-preview'
+  const quic = getNativeBridge()?.transport === 'quic'
   const [saveError, setSaveError] = useState('')
   const [text, setText] = useState('')
   const bottomRef  = useRef<HTMLDivElement>(null)

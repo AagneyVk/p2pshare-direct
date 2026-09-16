@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useP2PStore } from '../store/useP2PStore'
 import { Btn, Divider } from '../components/Ui'
 import { getNativeBridge } from '../native/NativeBridge'
@@ -8,6 +8,43 @@ export default function HomeScreen() {
   const [view, setView] = useState<'home' | 'join'>('home')
   const [code, setCode] = useState('')
   const [joinError, setJoinError] = useState('')
+  const [updateMessage, setUpdateMessage] = useState('')
+  const [updateStage, setUpdateStage] = useState<'check' | 'download' | 'install'>('check')
+  const [updateBusy, setUpdateBusy] = useState(false)
+  const bridge = getNativeBridge()
+
+  useEffect(() => {
+    bridge?.updateInfo?.().then(info => {
+      setUpdateMessage(info.packaged
+        ? `P2P SHARE ${info.version}`
+        : `SOURCE BUILD ${info.version} · USE GIT PULL OR INSTALL A RELEASE`)
+    }).catch(() => setUpdateMessage('UPDATE STATUS UNAVAILABLE'))
+  }, [])
+
+  const handleUpdate = async () => {
+    if (!bridge || updateBusy) return
+    setUpdateBusy(true)
+    try {
+      if (updateStage === 'check') {
+        setUpdateMessage('CHECKING VERIFIED GITHUB RELEASES…')
+        const release = await bridge.checkForUpdate?.()
+        if (release) {
+          setUpdateMessage(`UPDATE AVAILABLE · ${release.tag}`)
+          setUpdateStage('download')
+        } else setUpdateMessage('YOU ARE ON THE LATEST RELEASE')
+      } else if (updateStage === 'download') {
+        setUpdateMessage('DOWNLOADING AND VERIFYING SHA-256…')
+        const result = await bridge.downloadUpdate?.()
+        setUpdateMessage(`VERIFIED ${result?.tag ?? 'UPDATE'} · READY TO INSTALL`)
+        setUpdateStage('install')
+      } else {
+        setUpdateMessage('STARTING VERIFIED INSTALLER…')
+        await bridge.installUpdate?.()
+      }
+    } catch (error) {
+      setUpdateMessage(`UPDATE ERROR · ${error instanceof Error ? error.message : String(error)}`)
+    } finally { setUpdateBusy(false) }
+  }
 
   const handleCreate = async () => {
     clearError()
@@ -26,7 +63,7 @@ export default function HomeScreen() {
       <div style={{ marginBottom: 48 }}>
         <div className="screen__title">P2P SHARE</div>
         <div className="screen__sub" style={{ marginTop: 6 }}>
-          {getNativeBridge()?.transport === 'quic-preview' ? 'QUIC DESKTOP PREVIEW · LAN · FILES ONLY' : 'DIRECT ENCRYPTED FILE TRANSFER'}
+          {bridge?.transport === 'quic' ? 'DIRECT QUIC · WINDOWS ↔ ANDROID · VERIFIED FILES' : 'LEGACY DESKTOP TRANSPORT'}
         </div>
       </div>
 
@@ -46,6 +83,17 @@ export default function HomeScreen() {
           {(errorMsg) && (
             <div style={{ marginTop: 12, color: '#fff', fontFamily: 'monospace', fontSize: 12 }}>
               ERROR: {errorMsg}
+            </div>
+          )}
+
+          <Divider />
+
+          {bridge?.updateInfo && (
+            <div className="col" style={{ gap: 8 }}>
+              <div className="screen__sub" style={{ textAlign: 'center', lineHeight: 1.6 }}>{updateMessage}</div>
+              <Btn ghost sm disabled={updateBusy} onClick={handleUpdate} style={{ width: '100%', justifyContent: 'center' }}>
+                {updateBusy ? 'PLEASE WAIT…' : updateStage === 'install' ? 'INSTALL UPDATE' : updateStage === 'download' ? 'DOWNLOAD UPDATE' : 'CHECK FOR UPDATES'}
+              </Btn>
             </div>
           )}
 

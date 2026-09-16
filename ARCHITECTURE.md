@@ -1,11 +1,11 @@
 # Architecture
 
-## Staged QUIC migration
+## Shared QUIC transport
 
-`transport-core/` contains the Rust QUIC v3-alpha implementation and a native
-engine process. Electron's opt-in `--quic` path uses it through `QuicBridge.cjs`;
-Android's launcher uses the same engine through JNI and a socketpair. The default
-desktop launch remains v2. See `QUIC-ANDROID.md`, `QUIC-DESKTOP.md`, `PROTOCOL-V3.md`,
+`transport-core/` contains the Rust QUIC v3 implementation and a native engine
+process. Electron uses it by default through `QuicBridge.cjs`; Android uses the
+same engine through JNI and a socketpair. The old desktop v2 path is explicit
+legacy mode. See `QUIC-ANDROID.md`, `QUIC-DESKTOP.md`, `PROTOCOL-V3.md`,
 `THREAT-MODEL.md` and `PRODUCTION-READINESS.md` for the implemented scope and gates.
 Retain React, Electron shell, Android UI and the direct-only product model.
 Retire duplicated v2 packet crypto, framing, pacing, repair/parity and socket
@@ -24,11 +24,11 @@ cloud storage, Firebase signaling, or TURN fallback.
 ```text
 React UI                         Android UI
    |                                 |
-Electron preload                DirectUdpTransport
+Electron preload                  socketpair
    |                                 |
-NativeBridgeController  <---- encrypted UDP ---->
-   |
-Rust native core
+QuicBridgeController          Rust QUIC JNI
+   |                                 |
+Rust engine process  <====== direct QUIC ======>
 ```
 
 The React process handles interaction and progress rendering. Electron's main

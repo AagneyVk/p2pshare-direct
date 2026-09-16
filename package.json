@@ -1,7 +1,7 @@
 {
   "name": "p2pshare-desktop",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "main": "electron/main.cjs",
   "engines": {
@@ -9,15 +9,18 @@
   },
   "scripts": {
     "build:engine": "cargo build --locked --release --manifest-path transport-core/Cargo.toml --bin p2pshare-engine",
-    "desktop:quic": "electron electron/main.cjs --quic",
+    "prepare:desktop": "npm run build && npm run build:engine",
+    "desktop:quic": "npm run desktop",
+    "desktop:legacy": "npm run build && npm run build:native && electron electron/main.cjs --legacy",
     "test:engine": "node --test tests/quic-bridge.test.cjs",
-    "test": "node --test tests/transport-security.test.cjs tests/ipc-policy.test.cjs",
+    "test": "node --test tests/transport-security.test.cjs tests/ipc-policy.test.cjs tests/app-updater.test.cjs",
     "dev": "vite",
-    "desktop": "electron electron/main.cjs",
+    "desktop": "npm run prepare:desktop && electron electron/main.cjs",
     "build": "tsc && vite build",
     "build:native": "cargo build --release --manifest-path native-core/Cargo.toml && node native-core/install-addon.cjs",
     "benchmark:native": "node native-core/benchmark.cjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist:win": "npm run prepare:desktop && electron-builder --win nsis --x64"
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
@@ -30,7 +33,37 @@
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.7.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.2.2",
     "vite": "^5.4.21"
+  },
+  "build": {
+    "appId": "com.p2pshare.desktop",
+    "productName": "P2PShare",
+    "artifactName": "P2PShare-Setup.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "transport-core/target/release/p2pshare-engine.exe",
+        "to": "p2pshare-engine.exe"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

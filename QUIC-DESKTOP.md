@@ -1,10 +1,10 @@
-# QUIC desktop preview
+# QUIC desktop transport
 
-This is a working opt-in desktop path, not a production release. It keeps all
+This is the default desktop transfer path. It keeps all
 file data and QUIC processing in a separate Rust process. Electron exchanges
 bounded JSON commands and throttled status events, never per-packet payloads.
-The original v2 desktop path remains the default. Android now has a JNI adapter
-for this preview; see [Android interoperability](QUIC-ANDROID.md).
+The original v2 desktop path is explicit legacy mode. Android uses a JNI adapter
+for the same engine; see [Android interoperability](QUIC-ANDROID.md).
 
 ## Run on two desktops
 
@@ -12,16 +12,14 @@ Requirements: Node 22.12+ (24 recommended), current stable Rust, linker.
 
 ```sh
 npm ci
-npm run build:engine
-npm run build
-npm run desktop:quic
+npm run desktop
 ```
 
 1. Connect both desktops to a mutually reachable LAN (or already configured
    direct overlay). The preview does not establish NAT traversal or a relay.
 2. Create a session on one desktop. Privately copy its full `p2p3:` ticket to the
    other. Creating a session consents to receiving files from its ticket holder.
-3. Join in QUIC preview on the second desktop. Tickets are case-sensitive,
+3. Join on the second desktop or Android app. Tickets are case-sensitive,
    expire after five minutes, and authorize one successfully authenticated guest.
 4. Send a local file with the file picker. Only one outbound file at a time is
    supported; simultaneous opposite-direction sends use the same connection.
@@ -36,9 +34,9 @@ private-network firewall prompt. The preview chooses an IPv4 interface; multiple
 NIC/VPN systems may need future interface selection. Do not disable firewalls
 globally. There is no server account, upload store or hosted relay.
 
-`npm run desktop` still starts the original v2 transport. The preview deliberately
-does not fall back to it silently. Chat and renderer-side compression are disabled
-in preview. Real local files bypass renderer buffering entirely.
+The app never silently falls back to the incompatible legacy wire protocol.
+`npm run desktop:legacy` exists only for migration testing. Chat and renderer-side
+compression are disabled on QUIC. Real local files bypass renderer buffering.
 
 ## Pairing and storage
 
