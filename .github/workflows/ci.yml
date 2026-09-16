@@ -177,7 +177,14 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           TAG="v$VERSION"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "$TAG is already published; bump the app version for the next update." >> "$GITHUB_STEP_SUMMARY"
+            TARGET=$(gh release view "$TAG" --json targetCommitish --jq '.targetCommitish')
+            test "$TARGET" = "$GITHUB_SHA" || { echo "$TAG belongs to another revision; bump the app version."; exit 1; }
+            if [ -f release-files/P2PShare.apk ] && ! gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx 'P2PShare.apk'; then
+              gh release upload "$TAG" release-files/P2PShare.apk
+              echo "Attached the permanently signed Android update to $TAG." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "$TAG is already complete." >> "$GITHUB_STEP_SUMMARY"
+            fi
             exit 0
           fi
           printf '%s\n' 'Tested P2PShare update. Windows uses the shared QUIC/Rust transport. Android is included only when permanent signing is configured.' > release-notes.txt

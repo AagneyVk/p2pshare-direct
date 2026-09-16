@@ -12,8 +12,8 @@ android {
         applicationId = "com.p2pshare.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         buildConfigField("String", "SOURCE_REVISION", "\"${System.getenv("P2PSHARE_SOURCE_REVISION")?.takeIf { it.matches(Regex("[0-9a-f]{40}")) } ?: "local"}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }

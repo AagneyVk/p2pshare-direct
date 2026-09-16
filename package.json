@@ -1,7 +1,7 @@
 {
   "name": "p2pshare-desktop",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Direct encrypted QUIC file transfer for Windows and Android",
   "author": "AagneyVk",
   "type": "module",
