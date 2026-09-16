@@ -2,6 +2,8 @@
   "name": "p2pshare-desktop",
   "private": true,
   "version": "1.1.0",
+  "description": "Direct encrypted QUIC file transfer for Windows and Android",
+  "author": "AagneyVk",
   "type": "module",
   "main": "electron/main.cjs",
   "engines": {
@@ -20,11 +22,10 @@
     "build:native": "cargo build --release --manifest-path native-core/Cargo.toml && node native-core/install-addon.cjs",
     "benchmark:native": "node native-core/benchmark.cjs",
     "preview": "vite preview",
-    "dist:win": "npm run prepare:desktop && electron-builder --win nsis --x64"
+    "dist:win": "npm run prepare:desktop && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
-    "electron": "44.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^4.4.6"
@@ -33,6 +34,7 @@
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.7.0",
+    "electron": "44.2.0",
     "electron-builder": "^26.15.3",
     "typescript": "^5.2.2",
     "vite": "^5.4.21"
