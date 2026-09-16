@@ -64,7 +64,7 @@ tasks.named("preBuild") { dependsOn(buildQuicNative) }
 
 dependencies {
     implementation("androidx.core:core:1.15.0")
-    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("junit:junit:4.13.2")
     testImplementation("junit:junit:4.13.2")
     implementation("com.github.luben:zstd-jni:1.5.7-6@aar")
