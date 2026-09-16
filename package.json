@@ -25,19 +25,19 @@
     "dist:win": "npm run prepare:desktop && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
-    "@noble/hashes": "^1.8.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "zustand": "^4.4.6"
+    "@noble/hashes": "^2.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@types/react": "^18.2.37",
-    "@types/react-dom": "^18.2.15",
-    "@vitejs/plugin-react": "^4.7.0",
-    "electron": "44.2.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "44.3.0",
     "electron-builder": "^26.15.3",
-    "typescript": "^5.2.2",
-    "vite": "^5.4.21"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
   },
   "build": {
     "appId": "com.p2pshare.desktop",
