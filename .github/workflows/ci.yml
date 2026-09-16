@@ -74,6 +74,9 @@ jobs:
       signed-release-ready: ${{ steps.signing.outputs.ready }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     defaults:
       run:
         working-directory: android
@@ -87,7 +90,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,x86_64-linux-android
-      - run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;28.0.13004108"
+      - run: >-
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;28.0.13004108"
       - run: cargo install cargo-ndk --version 4.1.2 --locked
       - run: chmod +x gradlew
       - run: ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest --no-daemon
